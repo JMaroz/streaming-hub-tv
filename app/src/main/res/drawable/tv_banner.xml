@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <!-- Dark Cinematic Background -->
+    <path
+        android:fillColor="#0B0F19"
+        android:pathData="M0,0h320v180h-320z"/>
+    <!-- Subtle Inner Card Panel -->
+    <path
+        android:fillColor="#121826"
+        android:pathData="M16,16h288v148h-288z"/>
+    <!-- Outer rectangle logo -->
+    <path
+        android:strokeColor="#6366F1"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M136,45 H184 A4,4 0 0,1 188,49 V97 A4,4 0 0,1 184,101 H136 A4,4 0 0,1 132,97 V49 A4,4 0 0,1 136,45 Z"/>
+    <!-- Top film line -->
+    <path
+        android:strokeColor="#6366F1"
+        android:strokeWidth="4"
+        android:pathData="M132,58 H188"/>
+    <!-- Play Triangle -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M154,67 L172,74 L154,81 Z"/>
+    <!-- Brand Title Text Graphic below -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M110,125 h100 v15 h-100 z"/>
+</vector>

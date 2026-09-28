@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Streaming Hub</string>
+    <string name="app_tagline">Cinema &amp; Serie TV su Android TV</string>
+    
+    <!-- Navigation -->
+    <string name="nav_search">Cerca</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_movies">Film</string>
+    <string name="nav_series">Serie TV</string>
+    <string name="nav_favorites">Preferiti</string>
+    <string name="nav_settings">Impostazioni</string>
+    <string name="nav_profile">Profilo</string>
+
+    <!-- Shelves -->
+    <string name="shelf_continue">Continua a guardare</string>
+    <string name="shelf_favorites">I Tuoi Preferiti</string>
+    <string name="shelf_latest">Ultimi Arrivi</string>
+    <string name="shelf_movies">Film Recenti</string>
+    <string name="shelf_series">Serie TV</string>
+
+    <!-- Details -->
+    <string name="btn_play">Guarda</string>
+    <string name="btn_resume">Riprendi da %s</string>
+    <string name="btn_restart">Ricomincia da capo</string>
+    <string name="btn_add_favorite">Aggiungi ai Preferiti</string>
+    <string name="btn_remove_favorite">Rimuovi dai Preferiti</string>
+    <string name="label_seasons">Stagioni</string>
+    <string name="label_episodes">Episodi</string>
+    <string name="label_sources">Sorgente Video</string>
+    <string name="label_quality">Qualità</string>
+    
+    <!-- Player -->
+    <string name="player_loading">Caricamento flusso video HLS…</string>
+    <string name="player_error">Impossibile avviare la riproduzione video.</string>
+    <string name="player_audio">Traccia Audio</string>
+    <string name="player_subtitles">Sottotitoli</string>
+
+    <!-- Setup / Discovery -->
+    <string name="setup_title">Connessione a Streaming Hub</string>
+    <string name="setup_searching">Ricerca automatica del server in rete locale (LAN)…</string>
+    <string name="setup_found">Server trovato: %s</string>
+    <string name="setup_manual_hint">Oppure inserisci manualmente l\'indirizzo IP / Host:</string>
+    <string name="setup_btn_connect">Connetti</string>
+    <string name="setup_btn_rescan">Nuova Ricerca</string>
+    <string name="setup_error">Nessun server Streaming Hub rilevato su questa rete.</string>
+
+    <!-- Profiles -->
+    <string name="profiles_title">Chi sta guardando?</string>
+    <string name="pin_prompt">Inserisci il PIN del profilo</string>
+    <string name="pin_error">PIN non corretto, riprova.</string>
+</resources>
