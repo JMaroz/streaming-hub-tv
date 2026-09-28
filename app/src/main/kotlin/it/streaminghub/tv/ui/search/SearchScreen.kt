@@ -217,6 +217,7 @@ fun SearchScreen(
                     items(uiState.results, key = { it.id }) { item ->
                         TvPosterCard(
                             item = item,
+                            serverUrl = uiState.serverUrl,
                             onClick = { onItemClick(item.type, item.id) }
                         )
                     }

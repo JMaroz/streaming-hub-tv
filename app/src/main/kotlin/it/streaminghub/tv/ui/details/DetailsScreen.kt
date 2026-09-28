@@ -70,9 +70,10 @@ fun DetailsScreen(
             .background(BgPrimary)
     ) {
         // Background Backdrop with Cinematic Dark Vignette
-        if (item?.backdropUrl != null || item?.posterUrl != null) {
+        val backdropUrl = item?.getFormattedBackdropUrl(uiState.serverUrl)
+        if (!backdropUrl.isNullOrEmpty()) {
             AsyncImage(
-                model = item.backdropUrl ?: item.posterUrl,
+                model = backdropUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -314,6 +315,7 @@ fun DetailsScreen(
                                 items(uiState.currentSeasonEpisodes) { ep ->
                                     TvEpisodeCard(
                                         episode = ep,
+                                        serverUrl = uiState.serverUrl,
                                         onClick = {
                                             val epSource = ep.sources.firstOrNull { it.available } ?: ep.sources.firstOrNull()
                                             if (epSource != null) {

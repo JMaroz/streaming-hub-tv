@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 data class DetailsUiState(
     val isLoading: Boolean = true,
     val item: MediaItemDto? = null,
+    val serverUrl: String? = null,
     val isFavorite: Boolean = false,
     val selectedSource: ProviderSourceDto? = null,
     val selectedSeasonNumber: Int = 1,
@@ -47,6 +48,7 @@ class DetailsViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
+            val serverUrl = preferences.serverUrl.firstOrNull()
 
             catalogRepository.getTitleDetails(mediaType, titleId, profileId)
                 .onSuccess { details ->
@@ -56,6 +58,7 @@ class DetailsViewModel(
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         item = details,
+                        serverUrl = serverUrl,
                         isFavorite = isFav,
                         selectedSource = defaultSource
                     )

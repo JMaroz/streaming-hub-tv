@@ -39,6 +39,30 @@ data class ProviderSourceDto(
     val available: Boolean = true
 )
 
+fun formatImageUrl(rawUrl: String?, serverUrl: String?): String? {
+    val url = rawUrl?.trim() ?: return null
+    if (url.isEmpty()) return null
+
+    val cleanServer = serverUrl?.trim()?.removeSuffix("/")
+
+    return when {
+        url.startsWith("http://") || url.startsWith("https://") -> url
+        url.startsWith("//") -> "https:$url"
+        url.startsWith("/") -> {
+            if (!cleanServer.isNullOrEmpty()) {
+                "$cleanServer$url"
+            } else if (url.startsWith("/t/p/")) {
+                "https://image.tmdb.org$url"
+            } else {
+                url
+            }
+        }
+        url.startsWith("t/p/") -> "https://image.tmdb.org/$url"
+        !cleanServer.isNullOrEmpty() -> "$cleanServer/$url"
+        else -> "https://image.tmdb.org/t/p/w500/$url"
+    }
+}
+
 @Serializable
 data class TvEpisodeDto(
     val id: String = "",
@@ -51,13 +75,7 @@ data class TvEpisodeDto(
     val sources: List<ProviderSourceDto> = emptyList()
 ) {
     fun getFormattedPosterUrl(serverUrl: String?): String? {
-        val url = posterUrl?.trim() ?: return null
-        if (url.isEmpty()) return null
-        return when {
-            url.startsWith("//") -> "https:$url"
-            url.startsWith("/") -> if (!serverUrl.isNullOrEmpty()) "$serverUrl$url" else url
-            else -> url
-        }
+        return formatImageUrl(posterUrl, serverUrl)
     }
 }
 
@@ -88,23 +106,11 @@ data class MediaItemDto(
     @SerialName("is_favorite") val isFavorite: Boolean = false
 ) {
     fun getFormattedPosterUrl(serverUrl: String?): String? {
-        val url = posterUrl?.trim() ?: return null
-        if (url.isEmpty()) return null
-        return when {
-            url.startsWith("//") -> "https:$url"
-            url.startsWith("/") -> if (!serverUrl.isNullOrEmpty()) "$serverUrl$url" else url
-            else -> url
-        }
+        return formatImageUrl(posterUrl, serverUrl)
     }
 
     fun getFormattedBackdropUrl(serverUrl: String?): String? {
-        val url = (backdropUrl ?: posterUrl)?.trim() ?: return null
-        if (url.isEmpty()) return null
-        return when {
-            url.startsWith("//") -> "https:$url"
-            url.startsWith("/") -> if (!serverUrl.isNullOrEmpty()) "$serverUrl$url" else url
-            else -> url
-        }
+        return formatImageUrl(backdropUrl ?: posterUrl, serverUrl)
     }
 }
 
@@ -175,13 +181,7 @@ data class WatchProgressItemDto(
         get() = if (durationSeconds > 0) ((progressSeconds / durationSeconds) * 100).toFloat() else 0f
 
     fun getFormattedPosterUrl(serverUrl: String?): String? {
-        val url = posterUrl?.trim() ?: return null
-        if (url.isEmpty()) return null
-        return when {
-            url.startsWith("//") -> "https:$url"
-            url.startsWith("/") -> if (!serverUrl.isNullOrEmpty()) "$serverUrl$url" else url
-            else -> url
-        }
+        return formatImageUrl(posterUrl, serverUrl)
     }
 }
 

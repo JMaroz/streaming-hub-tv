@@ -38,9 +38,11 @@ import it.streaminghub.tv.ui.theme.TextMuted
 fun TvEpisodeCard(
     episode: TvEpisodeDto,
     modifier: Modifier = Modifier,
+    serverUrl: String? = null,
     onClick: () -> Unit
 ) {
     val cardShape = RoundedCornerShape(10.dp)
+    val formattedPoster = episode.getFormattedPosterUrl(serverUrl)
 
     Column(
         modifier = modifier
@@ -58,12 +60,14 @@ fun TvEpisodeCard(
                 .clip(cardShape)
                 .background(BgCard)
         ) {
-            AsyncImage(
-                model = episode.posterUrl,
-                contentDescription = episode.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (!formattedPoster.isNullOrEmpty()) {
+                AsyncImage(
+                    model = formattedPoster,
+                    contentDescription = episode.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // Episode Number Tag
             Box(

@@ -1,6 +1,7 @@
 package it.streaminghub.tv
 
 import android.app.Application
+import coil.Coil
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
@@ -37,6 +38,12 @@ class StreamingHubApp : Application(), ImageLoaderFactory {
             .readTimeout(15, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 12; Android TV) StreamingHubTV/1.0")
+                    .build()
+                chain.proceed(request)
+            }
             .build()
     }
 
@@ -48,6 +55,9 @@ class StreamingHubApp : Application(), ImageLoaderFactory {
         playbackRepository = PlaybackRepository(preferences)
         profileRepository = ProfileRepository(preferences)
         favoritesRepository = FavoritesRepository(preferences)
+
+        // Initialize Coil singleton explicitly
+        Coil.setImageLoader(this)
     }
 
     override fun newImageLoader(): ImageLoader {

@@ -17,6 +17,7 @@ data class SearchUiState(
     val query: String = "",
     val isSearching: Boolean = false,
     val results: List<MediaItemDto> = emptyList(),
+    val serverUrl: String? = null,
     val errorMessage: String? = null
 )
 
@@ -29,6 +30,13 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            val serverUrl = preferences.serverUrl.firstOrNull()
+            _uiState.value = _uiState.value.copy(serverUrl = serverUrl)
+        }
+    }
 
     fun setQuery(q: String) {
         _uiState.value = _uiState.value.copy(query = q)
