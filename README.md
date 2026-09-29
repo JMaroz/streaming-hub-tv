@@ -1,4 +1,4 @@
-# Streaming Hub for Android TV 📺🎬
+# 📺 Streaming Hub per Android TV & Google TV
 
 [![Android TV](https://img.shields.io/badge/Platform-Android%20TV%20%2F%20Google%20TV-3DDC84.svg?style=for-the-badge&logo=android)](https://developer.android.com/tv)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.20-7F52FF.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org/)
@@ -6,58 +6,73 @@
 [![Media3 ExoPlayer](https://img.shields.io/badge/Media3-ExoPlayer%201.4-FF0000.svg?style=for-the-badge)](https://developer.android.com/media/media3)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-Applicazione nativa per **Android TV** e **Google TV** progettata per interfacciarsi con il backend multimediale di [**ha-streaming-hub**](https://github.com/JMaroz/ha-streaming-hub) (Add-on Home Assistant).
-Offre un'esperienza "10-foot UI" fluida, cinematografica e ottimizzata per l'uso esclusivo tramite **telecomando (D-pad)** con focus management ad alto contrasto.
+> Un'esperienza multimediale cinematografica, progettata nativamente per schermi di grandi dimensioni.
+
+<!-- Placeholder per uno screenshot dell'app, molto consigliato per i README di app visive -->
+![App Screenshot](https://via.placeholder.com/1200x600.png?text=Inserisci+qui+uno+screenshot+o+una+GIF+dell'app)
+
+**Streaming Hub** è un'applicazione nativa per **Android TV** e **Google TV**, ottimizzata per un'esperienza "10-foot UI" fluida ed elegante. Costruita con le più recenti tecnologie Android (Jetpack Compose for TV, Media3 ExoPlayer), offre un'interfaccia ad alto contrasto concepita per l'uso esclusivo tramite telecomando (D-pad).
+
+> [!IMPORTANT]
+> **Requisito Fondamentale:** Questa app funge da client e richiede che il server [**ha-streaming-hub**](https://github.com/JMaroz/ha-streaming-hub) (Add-on per Home Assistant) sia installato, configurato e attivo sulla tua rete locale. Senza il backend in esecuzione, l'applicazione non può funzionare.
 
 ---
 
-## 🌟 Caratteristiche Principali
-
-- 📡 **Rilevamento Automatico del Server (Auto-Discovery)**: All'avvio effettua la scansione rapida della sottorete locale (porta 8099 / mDNS) verificando automaticamente la connessione con l'endpoint `/api/status`. Supporta anche la configurazione manuale con test di connettività.
-- 🎯 **Focus Management Avanzato (10-Foot UI)**:
-  - Ingrandimento elastico delle schede (1.08x) con bordo luminoso (*Indigo Glow* `#6366f1`) ed elevazione.
-  - Sfondo dinamico ad alta risoluzione (**Dynamic Hero Billboard**) con dissolvenza incrociata al cambio di focus.
-  - **Focus Memory**: memorizzazione dell'elemento attivo al ritorno dal player o dalla scheda di dettaglio.
-- 🍿 **Profili Famiglia con Filtro Età & PIN**:
-  - Selettore profili stile Netflix all'avvio o tramite menu rapido.
-  - Filtro automatico del catalogo per classificazione d'età (`T`, `6+`, `14+`, `18+`, `ALL`).
-  - Finestra modale con tastierino numerico a video navigabile via telecomando per i profili protetti da PIN genitore.
-- ⚡ **Player Video HLS ad Alte Prestazioni (AndroidX Media3 ExoPlayer)**:
-  - Riproduzione diretta dei flussi LAN HLS proxy erogati da `ha-streaming-hub` con header anti-blocco già riscritti dal server.
-  - OSD (On-Screen Display) con comparsa e scomparsa automatica dopo 3.5 secondi.
-  - Salto rapido avanti/indietro di 10 secondi e scrubbing della timeline.
-  - Selettore tracce audio multilingua e sottotitoli.
-  - Heartbeat automatico del progresso inviato ogni 10 secondi a `/api/history` con sincronizzazione Trakt.tv.
-- 📚 **Catalogo Completo & Shelves**:
-  - *Continua a guardare*: Barra di avanzamento e ripresa rapida dal punto esatto.
-  - *I Tuoi Preferiti*: Lista personalizzata sincronizzata con il server.
-  - *Ultimi Arrivi, Film Recenti, Serie TV e Corsie per Genere*.
-  - Scheda dettagli estesa con trama, cast, regista, selezione stagioni/episodi e scelta del provider (StreamingCommunity, CB01, ecc.).
-- 🎙️ **Ricerca Vocale & Tastiera TV**:
-  - Ricerca istantanea con debouncing.
-  - Integrazione con l'assistente vocale di Android TV (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`) premendo il tasto microfono del telecomando.
+## 📑 Indice
+- [✨ Caratteristiche Principali](#-caratteristiche-principali)
+- [🏗️ Architettura del Progetto](#-architettura-del-progetto)
+- [🎮 Mappatura Telecomando](#-mappatura-telecomando)
+- [📂 Struttura del Codice](#-struttura-del-codice)
+- [🚀 Prerequisiti e Installazione](#-prerequisiti-e-installazione)
+- [📄 Licenza](#-licenza)
 
 ---
 
-## 🏛️ Architettura del Progetto
+## ✨ Caratteristiche Principali
+
+- 📡 **Rilevamento Automatico del Server (Zero-Config)**: Scansione rapida della sottorete locale (porta 8099 / mDNS) con verifica istantanea dell'endpoint `/api/status`. Configurazione manuale supportata come fallback.
+- 🎯 **Esperienza Visiva per TV (10-Foot UI)**:
+  - Ingrandimento elastico delle schede (1.08x) con bagliore *Indigo Glow* (`#6366f1`) ed elevazione dinamica.
+  - **Dynamic Hero Billboard**: sfondo ad alta risoluzione che reagisce e sfuma dinamicamente al cambio di focus.
+  - **Focus Memory**: mantiene lo stato di navigazione tornando fluidamente all'ultimo elemento attivo.
+- 🍿 **Gestione Profili & Parental Control**:
+  - Selezione profilo in stile Netflix (all'avvio o tramite quick menu).
+  - Filtro automatico dei contenuti basato su rating (`T`, `6+`, `14+`, `18+`, `ALL`).
+  - Protezione con PIN per profili specifici, tramite tastierino numerico ottimizzato per telecomando.
+- ⚡ **Player HLS ad Alte Prestazioni (Media3 ExoPlayer)**:
+  - Riproduzione hardware-accelerated dei flussi LAN HLS proxy erogati dal server.
+  - OSD (On-Screen Display) intelligente con auto-hide (3.5s).
+  - Controlli di scrubbing fluidi, selezione tracce audio multilingua e sottotitoli integrati.
+  - Sincronizzazione automatica del progresso (heartbeat ogni 10s verso `/api/history`) e integrazione Trakt.tv.
+- 📚 **Catalogo Dinamico & Shelves**:
+  - Liste personalizzate: *Continua a guardare*, *I Tuoi Preferiti*, *Ultimi Arrivi*, *Trending*.
+  - Schede dettaglio arricchite con metadati completi (trama, cast, regista) e selezione intuitiva per stagioni ed episodi.
+- 🎙️ **Integrazione Vocale**:
+  - Ricerca istantanea (con debouncing) e supporto nativo per l'assistente vocale di Android TV.
+
+---
+
+## 🏗️ Architettura del Progetto
+
+L'applicazione segue i moderni pattern di sviluppo Android (MVVM / Clean Architecture) con una chiara separazione tra la UI reattiva e il Data Layer.
 
 ```mermaid
 flowchart TD
     subgraph Device["Android TV / Google TV"]
         subgraph App["tv-streaming-hub App"]
-            UI["Jetpack Compose for TV\n(TvLazyRow, TvLazyColumn, HeroBillboard)"]
-            Focus["TvFocusModifier System\n(Scale 1.08x + Border Glow + Memory)"]
-            VM["State ViewModels\n(Setup, Profiles, Home, Details, Player, Search)"]
-            Exo["AndroidX Media3 ExoPlayer\n(HLS .m3u8, Hardware Decoding, Subtitles)"]
-            Disc["ServerDiscoveryManager\n(Subnet LAN Probe & Ping Status)"]
-            Data["Data Layer\n(Retrofit 2, Kotlinx Serialization, DataStore)"]
+            UI["Jetpack Compose for TV\n(TvLazyRow, HeroBillboard)"]
+            Focus["TvFocusModifier System\n(Scale 1.08x + Border Glow)"]
+            VM["State ViewModels\n(Setup, Profiles, Home, Player)"]
+            Exo["AndroidX Media3 ExoPlayer\n(Hardware Decoding)"]
+            Disc["ServerDiscoveryManager\n(LAN Probe & Ping)"]
+            Data["Data Layer\n(Retrofit 2, DataStore)"]
         end
     end
 
-    subgraph Host["Host Home Assistant / Server"]
+    subgraph Host["Host (Home Assistant)"]
         BE["FastAPI Backend (:8099)"]
         Proxy["HLS Rewriter Proxy (/stream/{token})"]
-        DB["SQLite DB (/data/streaming_hub.db)"]
+        DB["SQLite DB (/data/...)"]
     end
 
     UI --> Focus
@@ -73,87 +88,66 @@ flowchart TD
 
 ---
 
-## 🎮 Mappatura Tasti Telecomando (Remote Control)
+## 🎮 Mappatura Telecomando
 
-| Tasto Telecomando | Schermata Catalogo / Dettagli | Player Video |
-|---|---|---|
-| **Freccia SU** | Sposta il focus verso la riga superiore o barra di navigazione | Mostra finestra selezione Audio / Sottotitoli |
-| **Freccia GIÙ** | Sposta il focus verso la riga inferiore | Mostra controlli OSD |
-| **Freccia SINISTRA** | Scorri verso la locandina precedente | Salto indietro di 10 secondi (Rewind) |
-| **Freccia DESTRA** | Scorri verso la locandina successiva | Salto in avanti di 10 secondi (Fast Forward) |
-| **D-Pad CENTER (OK)** | Seleziona l'elemento evidenziato | Play / Pausa |
-| **Tasto INDIETRO (Back)** | Torna alla schermata precedente | Salva progresso ed esce dal player |
-| **Tasto MICROFONO** | Avvia la ricerca vocale (nella schermata di ricerca) | - |
+L'intera interfaccia è ottimizzata per garantire una navigazione fluida e naturale utilizzando unicamente il telecomando della TV.
+
+| Tasto D-Pad | Schermata Catalogo / Dettagli | Player Video (Media3) |
+|:---:|---|---|
+| **⬆️ SU** | Focus su riga superiore / Nav Bar | Selettore Audio / Sottotitoli |
+| **⬇️ GIÙ** | Focus su riga inferiore | Mostra controlli OSD |
+| **⬅️ SINISTRA** | Scorri verso sinistra | Salto indietro di 10s (Rewind) |
+| **➡️ DESTRA** | Scorri verso destra | Salto in avanti di 10s (Fast Forward) |
+| **⏺️ CENTER (OK)** | Seleziona elemento | Play / Pausa |
+| **↩️ BACK** | Torna alla schermata precedente | Salva progresso ed esce |
+| **🎤 MICROFONO** | Avvia la ricerca vocale | - |
 
 ---
 
-## 📂 Struttura del Codice Sorgente
+## 📂 Struttura del Codice
+
+La codebase è modulata per garantire scalabilità e facile manutenzione:
 
 ```text
-tv-streaming-hub/
-├── build.gradle.kts                   # Configurazione root Gradle
-├── settings.gradle.kts                # Configurazione repository e plugin
-├── gradle/
-│   ├── libs.versions.toml             # Version Catalog (Kotlin, Compose TV, Media3)
-│   └── wrapper/                       # Gradle Wrapper 8.9
-├── app/
-│   ├── build.gradle.kts               # Configurazione modulo Android TV
-│   ├── proguard-rules.pro             # Regole di ottimizzazione R8/Proguard
-│   └── src/main/
-│       ├── AndroidManifest.xml        # Manifest Android TV (Leanback launcher & banner)
-│       ├── res/
-│       │   ├── drawable/              # Banner TV 16:9 e icona launcher
-│       │   └── values/                # Colori, stringhe e temi TV
-│       └── kotlin/it/streaminghub/tv/
-│           ├── StreamingHubApp.kt     # Inizializzazione App e cache Coil
-│           ├── MainActivity.kt        # Entry point e navigazione TV
-│           ├── data/
-│           │   ├── api/               # StreamingHubApi, ApiClient, ServerDiscoveryManager
-│           │   ├── local/             # AppPreferences (DataStore)
-│           │   ├── model/             # DTO Kotlin serializzabili
-│           │   └── repository/        # Catalog, Playback, Profile e Favorites
-│           ├── player/
-│           │   └── VideoPlayerManager.kt # Wrapper AndroidX Media3 ExoPlayer
-│           └── ui/
-│               ├── theme/             # Tema scuro cinematico (TvMaterial3)
-│               ├── components/        # TvFocusModifier, TvPosterCard, TvEpisodeCard, HeroBillboard
-│               ├── navigation/        # NavRoutes e AppNavigation
-│               ├── setup/             # SetupScreen & SetupViewModel (Autodiscovery)
-│               ├── profiles/          # ProfilePickerScreen & ProfileViewModel (PIN)
-│               ├── home/              # HomeScreen & HomeViewModel (Shelves & Hero)
-│               ├── details/           # DetailsScreen & DetailsViewModel (Stagioni & Sorgenti)
-│               ├── player/            # PlayerScreen & PlayerViewModel (OSD)
-│               └── search/            # SearchScreen & SearchViewModel (Voice search)
+app/src/main/kotlin/it/streaminghub/tv/
+├── data/          # Retrofit API, Modelli DTO, DataStore e Repository (Single Source of Truth)
+├── player/        # Wrapper di ExoPlayer per un'integrazione fluida in Compose
+└── ui/
+    ├── theme/     # Material3 for TV (palette colori, typography, shape)
+    ├── components/# Componenti UI riutilizzabili (HeroBillboard, TvPosterCard)
+    ├── navigation/# Gestione routing con Navigation Compose
+    └── [screens]/ # Feature specifiche (setup, profiles, home, details, player, search)
 ```
 
 ---
 
-## 🛠️ Come Compilare ed Eseguire
+## 🚀 Prerequisiti e Installazione
 
-### Requisiti
-- **JDK 17** o superiore.
-- **Android SDK** con `compileSdk = 34` (Android 14) e `minSdk = 26` (Android 8.0 Oreo).
-- **Android Studio** (Hedgehog o superiore raccomandato).
+### 1. Prerequisiti di Sistema
+- **Backend**: [**ha-streaming-hub**](https://github.com/JMaroz/ha-streaming-hub) installato e in esecuzione.
+- **Ambiente di Sviluppo**:
+  - JDK 17 o superiore.
+  - Android SDK (API 34, Android 14) / `minSdk` 26 (Android 8.0).
+  - Android Studio (Hedgehog o versione superiore).
 
-### Compilazione da Riga di Comando
+### 2. Compilazione (Build)
+Clona la repository ed esegui la build tramite il Gradle Wrapper integrato:
 ```bash
-# Compilazione dell'APK Debug
+# Genera l'APK in modalità Debug
 ./gradlew assembleDebug
 
-# Esecuzione dei controlli di lint
+# Esegui i controlli di linting
 ./gradlew lintDebug
 ```
+L'eseguibile compilato si troverà in: `app/build/outputs/apk/debug/app-debug.apk`
 
-L'APK generato sarà disponibile in:
-`app/build/outputs/apk/debug/app-debug.apk`
-
-### Installazione su Dispositivo Android TV / Box TV
-Puoi installare l'APK direttamente tramite `adb`:
+### 3. Installazione su TV via ADB
+Abilita il **Debug di Rete** o il **Debug USB** dalle *Opzioni Sviluppatore* della tua TV e usa ADB per l'installazione remota:
 ```bash
-# Connessione all'IP della tua Android TV (abilitando Debug USB/Rete nelle Opzioni Sviluppatore)
+# Connettiti alla TV (sostituisci l'IP)
 adb connect 192.168.1.xxx:5555
 
-# Installazione dell'APK
+# Installa l'APK
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -161,4 +155,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## 📄 Licenza
 
-Rilasciato sotto licenza [MIT](LICENSE).
+Questo progetto è rilasciato sotto la licenza [MIT](LICENSE).
