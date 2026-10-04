@@ -19,16 +19,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,14 +54,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
-import it.streaminghub.tv.player.TrackInfo
 import it.streaminghub.tv.ui.components.TvButton
 import it.streaminghub.tv.ui.components.tvFocusable
+import it.streaminghub.tv.ui.theme.AccentGold
 import it.streaminghub.tv.ui.theme.AccentRed
-import it.streaminghub.tv.ui.theme.BgModal
 import it.streaminghub.tv.ui.theme.BgPrimary
 import it.streaminghub.tv.ui.theme.PrimaryIndigo
 import it.streaminghub.tv.ui.theme.TextDim
@@ -70,15 +79,19 @@ fun PlayerScreen(
 ) {
     val resolutionState by viewModel.resolutionState.collectAsState()
     val playerUiState by viewModel.playerUiState.collectAsState()
+    val bingeState by viewModel.bingeState.collectAsState()
 
     var showControls by remember { mutableStateOf(true) }
-    var showTrackDialog by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
+    var userInteractionTrigger by remember { mutableIntStateOf(0) }
 
-    // Intercept Back button: Dialog -> Controls -> Exit Player
+    val rootPlayerFocusRequester = remember { FocusRequester() }
+    val playPauseFocusRequester = remember { FocusRequester() }
+
+    // Intercept Back button:
+    // If controls are shown, hide them first. If controls are already hidden, exit the player.
     BackHandler {
         when {
-            showTrackDialog -> showTrackDialog = false
+            bingeState.isInsideCredits -> viewModel.dismissNextEpisodePrompt()
             showControls -> showControls = false
             else -> {
                 viewModel.reportProgress()
@@ -87,11 +100,24 @@ fun PlayerScreen(
         }
     }
 
-    // Auto-hide controls after 3.5s of inactivity when playing
-    LaunchedEffect(showControls, playerUiState.isPlaying) {
-        if (showControls && playerUiState.isPlaying && !showTrackDialog) {
-            delay(3500)
+    // Auto-hide controls after 6 seconds of inactivity when playing
+    LaunchedEffect(showControls, playerUiState.isPlaying, userInteractionTrigger) {
+        if (showControls && playerUiState.isPlaying) {
+            delay(6000)
             showControls = false
+        }
+    }
+
+    // Focus management when toggling controls
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            try {
+                playPauseFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        } else {
+            try {
+                rootPlayerFocusRequester.requestFocus()
+            } catch (_: Exception) {}
         }
     }
 
@@ -99,40 +125,75 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(focusRequester)
+            .focusRequester(rootPlayerFocusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                    // If controls are hidden, any key press reveals controls without triggering action
+                    val keyCode = keyEvent.nativeKeyEvent.keyCode
+                    if (keyCode == KeyEvent.KEYCODE_BACK) {
+                        return@onKeyEvent false // Managed by BackHandler
+                    }
+
+                    userInteractionTrigger++
+
                     if (!showControls) {
-                        showControls = true
-                        true
-                    } else {
-                        // Controls are visible: process D-pad navigation
-                        when (keyEvent.nativeKeyEvent.keyCode) {
-                            KeyEvent.KEYCODE_DPAD_CENTER,
-                            KeyEvent.KEYCODE_ENTER,
+                        // Direct remote shortcut for Skip Intro when visible
+                        if (bingeState.isInsideIntro && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+                            viewModel.skipIntro()
+                            return@onKeyEvent true
+                        }
+
+                        // Direct remote shortcut for Next Episode transition banner when visible
+                        if (bingeState.isInsideCredits && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+                            viewModel.playNextEpisode()
+                            return@onKeyEvent true
+                        }
+
+                        // Hardware media buttons
+                        when (keyCode) {
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                                 viewModel.togglePlayPause()
-                                true
+                                return@onKeyEvent true
                             }
-                            KeyEvent.KEYCODE_DPAD_LEFT,
                             KeyEvent.KEYCODE_MEDIA_REWIND -> {
                                 viewModel.seekBack()
-                                true
+                                return@onKeyEvent true
                             }
-                            KeyEvent.KEYCODE_DPAD_RIGHT,
                             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                                 viewModel.seekForward()
-                                true
+                                return@onKeyEvent true
                             }
-                            KeyEvent.KEYCODE_DPAD_UP -> {
-                                showTrackDialog = true
-                                true
+                            KeyEvent.KEYCODE_DPAD_CENTER,
+                            KeyEvent.KEYCODE_ENTER,
+                            KeyEvent.KEYCODE_DPAD_UP,
+                            KeyEvent.KEYCODE_DPAD_DOWN,
+                            KeyEvent.KEYCODE_DPAD_LEFT,
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                showControls = true
+                                return@onKeyEvent true
                             }
-                            else -> false
+                        }
+                        return@onKeyEvent false
+                    }
+
+                    // When controls are visible:
+                    // Only consume dedicated hardware media keys at root level,
+                    // let D-pad navigation flow freely to child controls!
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                            viewModel.togglePlayPause()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                            viewModel.seekBack()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                            viewModel.seekForward()
+                            return@onKeyEvent true
                         }
                     }
+                    false
                 } else false
             }
     ) {
@@ -198,7 +259,7 @@ fun PlayerScreen(
             }
         }
 
-        // Custom TV OSD Overlay
+        // Custom TV OSD Overlay (Netflix Style)
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn(),
@@ -219,87 +280,52 @@ fun PlayerScreen(
                         )
                         .padding(horizontal = 48.dp, vertical = 24.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = viewModel.mediaTitle,
-                            color = TextMain,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        // Audio & Subtitles button
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .tvFocusable(shape = CircleShape, onClick = { showTrackDialog = true })
-                                    .clip(CircleShape)
-                                    .background(Color(0x44FFFFFF)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Audiotrack,
-                                    contentDescription = "Audio/Sottotitoli",
-                                    tint = TextMain,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = viewModel.mediaTitle,
+                        color = TextMain,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                // Bottom Gradient Vignette with Timeline & Playback Status
+                // Bottom Gradient Vignette with Timeline, Playback Controls, Audio & Subtitles
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp)
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color(0xEE000000))
+                                colors = listOf(Color.Transparent, Color(0xF20B0F19), Color(0xFF0B0F19))
                             )
                         )
                         .padding(horizontal = 48.dp, vertical = 20.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Time & Action indicator
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // 1. Timeline Time & Remote Shortcuts Hint
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (playerUiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = PrimaryIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
                             Text(
                                 text = "${formatDuration(playerUiState.currentPositionMs)} / ${formatDuration(playerUiState.durationMs)}",
                                 color = TextMain,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
 
                             Spacer(modifier = Modifier.weight(1f))
 
                             Text(
-                                text = "◄◄ 10s   |   OK: Play/Pausa   |   10s ►►   |   ▲ Audio/Sub",
+                                text = "◄◄ 10s   |   OK: Seleziona   |   10s ►►",
                                 color = TextDim,
                                 fontSize = 11.sp
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Custom Timeline Bar
+                        // 2. Custom Timeline Bar
                         val duration = playerUiState.durationMs
                         val progressFraction = if (duration > 0) {
                             (playerUiState.currentPositionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
@@ -316,14 +342,12 @@ fun PlayerScreen(
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(Color(0x33FFFFFF))
                         ) {
-                            // Buffer bar
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(fraction = bufferedFraction)
                                     .height(6.dp)
                                     .background(Color(0x66FFFFFF))
                             )
-                            // Play progress bar
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(fraction = progressFraction)
@@ -331,140 +355,259 @@ fun PlayerScreen(
                                     .background(PrimaryIndigo)
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // 3. Quick Playback Action Buttons Row
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TvButton(
+                                text = "-10s",
+                                icon = Icons.Default.Replay10,
+                                onClick = {
+                                    userInteractionTrigger++
+                                    viewModel.seekBack()
+                                }
+                            )
+
+                            TvButton(
+                                text = if (playerUiState.isPlaying) "Pausa" else "Riproduci",
+                                icon = if (playerUiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                isPrimary = true,
+                                modifier = Modifier.focusRequester(playPauseFocusRequester),
+                                onClick = {
+                                    userInteractionTrigger++
+                                    viewModel.togglePlayPause()
+                                }
+                            )
+
+                            TvButton(
+                                text = "+10s",
+                                icon = Icons.Default.Forward10,
+                                onClick = {
+                                    userInteractionTrigger++
+                                    viewModel.seekForward()
+                                }
+                            )
+
+                            if (bingeState.isInsideIntro) {
+                                TvButton(
+                                    text = "Salta Intro",
+                                    icon = Icons.Default.FastForward,
+                                    onClick = {
+                                        userInteractionTrigger++
+                                        viewModel.skipIntro()
+                                    }
+                                )
+                            }
+
+                            if (bingeState.isInsideCredits) {
+                                TvButton(
+                                    text = "Prossimo Episodio",
+                                    icon = Icons.Default.SkipNext,
+                                    onClick = {
+                                        userInteractionTrigger++
+                                        viewModel.playNextEpisode()
+                                    }
+                                )
+                            }
+                        }
+
+                        // 4. Audio Tracks Row (Netflix Style)
+                        if (playerUiState.audioTracks.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "AUDIO",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(90.dp)
+                                )
+                                TvLazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(playerUiState.audioTracks) { track ->
+                                        TrackChip(
+                                            label = track.label,
+                                            isSelected = track.isSelected,
+                                            icon = Icons.Default.Audiotrack,
+                                            onClick = {
+                                                userInteractionTrigger++
+                                                viewModel.selectAudio(track)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 5. Subtitle Tracks Row (Netflix Style)
+                        if (playerUiState.subtitleTracks.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "SOTTOTITOLI",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(90.dp)
+                                )
+                                val noneSelected = playerUiState.subtitleTracks.none { it.isSelected }
+                                TvLazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    item {
+                                        TrackChip(
+                                            label = "Disattivati",
+                                            isSelected = noneSelected,
+                                            icon = Icons.Default.SubtitlesOff,
+                                            onClick = {
+                                                userInteractionTrigger++
+                                                viewModel.selectSubtitle(null)
+                                            }
+                                        )
+                                    }
+                                    items(playerUiState.subtitleTracks) { track ->
+                                        TrackChip(
+                                            label = track.label,
+                                            isSelected = track.isSelected,
+                                            icon = Icons.Default.Subtitles,
+                                            onClick = {
+                                                userInteractionTrigger++
+                                                viewModel.selectSubtitle(track)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Audio & Subtitle Track Chooser Modal
-        if (showTrackDialog) {
-            TrackSelectionDialog(
-                audioTracks = playerUiState.audioTracks,
-                subtitleTracks = playerUiState.subtitleTracks,
-                onSelectAudio = {
-                    viewModel.selectAudio(it)
-                    showTrackDialog = false
-                },
-                onSelectSubtitle = {
-                    viewModel.selectSubtitle(it)
-                    showTrackDialog = false
-                },
-                onDismiss = { showTrackDialog = false }
+        // Skip Intro Floating Button (visible when controls are hidden)
+        AnimatedVisibility(
+            visible = bingeState.isInsideIntro && !showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 72.dp, end = 48.dp)
+        ) {
+            TvButton(
+                text = "Salta Intro",
+                icon = Icons.Default.FastForward,
+                isPrimary = true,
+                onClick = { viewModel.skipIntro() }
             )
+        }
+
+        // Next Episode Transition Banner (visible when controls are hidden)
+        AnimatedVisibility(
+            visible = bingeState.isInsideCredits && !showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 72.dp, end = 48.dp)
+        ) {
+            val next = bingeState.nextEpisode
+            if (next != null) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xF0182030))
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column {
+                        val countText = bingeState.nextCountdownSeconds?.let { " (${it}s)" } ?: ""
+                        Text(
+                            text = "PROSSIMO EPISODIO$countText",
+                            color = AccentGold,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "S${next.seasonNumber}:E${next.episodeNumber} • ${next.episode.title.ifEmpty { "Episodio ${next.episodeNumber}" }}",
+                            color = TextMain,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton(
+                            text = "Riproduci",
+                            icon = Icons.Default.PlayArrow,
+                            isPrimary = true,
+                            onClick = { viewModel.playNextEpisode() }
+                        )
+                        TvButton(
+                            text = "Annulla",
+                            onClick = { viewModel.dismissNextEpisodePrompt() }
+                        )
+                    }
+                }
+            }
         }
     }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        rootPlayerFocusRequester.requestFocus()
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(UnstableApi::class)
+@kotlin.OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun TrackSelectionDialog(
-    audioTracks: List<TrackInfo>,
-    subtitleTracks: List<TrackInfo>,
-    onSelectAudio: (TrackInfo) -> Unit,
-    onSelectSubtitle: (TrackInfo?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xCC000000)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .width(420.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(BgModal)
-                .padding(24.dp)
-        ) {
-            Text(
-                text = "Audio & Sottotitoli",
-                color = TextMain,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Audio Tracks
-            Text(
-                text = "Traccia Audio",
-                color = TextMuted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            for (track in audioTracks) {
-                TrackRow(
-                    label = track.label,
-                    isSelected = track.isSelected,
-                    onClick = { onSelectAudio(track) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Subtitle Tracks
-            Text(
-                text = "Sottotitoli",
-                color = TextMuted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-
-            val noneSelected = subtitleTracks.none { it.isSelected }
-            TrackRow(
-                label = "Disattivati",
-                isSelected = noneSelected,
-                onClick = { onSelectSubtitle(null) }
-            )
-
-            for (track in subtitleTracks) {
-                TrackRow(
-                    label = track.label,
-                    isSelected = track.isSelected,
-                    onClick = { onSelectSubtitle(track) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            TvButton(
-                text = "Chiudi",
-                onClick = onDismiss
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun TrackRow(
+private fun TrackChip(
     label: String,
     isSelected: Boolean,
+    icon: ImageVector,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = RoundedCornerShape(8.dp)
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
             .tvFocusable(shape = shape, onClick = onClick)
             .clip(shape)
-            .background(if (isSelected) PrimaryIndigo.copy(alpha = 0.25f) else Color.Transparent)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(if (isSelected) PrimaryIndigo.copy(alpha = 0.35f) else Color(0x22FFFFFF))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = PrimaryIndigo,
+                modifier = Modifier.size(14.dp)
+            )
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextDim,
+                modifier = Modifier.size(14.dp)
+            )
+        }
         Text(
             text = label,
             color = if (isSelected) PrimaryIndigo else TextMain,
-            fontSize = 13.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
         )
     }
 }

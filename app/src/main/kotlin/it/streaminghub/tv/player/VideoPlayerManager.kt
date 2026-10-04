@@ -112,7 +112,12 @@ class VideoPlayerManager(
         })
     }
 
-    fun playStream(url: String, headers: Map<String, String> = emptyMap(), startPositionMs: Long = 0L) {
+    fun playStream(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        startPositionMs: Long = 0L,
+        subtitleConfigurations: List<MediaItem.SubtitleConfiguration> = emptyList()
+    ) {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
@@ -122,10 +127,15 @@ class VideoPlayerManager(
             httpDataSourceFactory.setDefaultRequestProperties(headers)
         }
 
-        val mediaItem = MediaItem.Builder()
+        val mediaItemBuilder = MediaItem.Builder()
             .setUri(url)
             .setMimeType(MimeTypes.APPLICATION_M3U8)
-            .build()
+
+        if (subtitleConfigurations.isNotEmpty()) {
+            mediaItemBuilder.setSubtitleConfigurations(subtitleConfigurations)
+        }
+
+        val mediaItem = mediaItemBuilder.build()
 
         val mediaSource = HlsMediaSource.Factory(httpDataSourceFactory)
             .setAllowChunklessPreparation(true)

@@ -1,5 +1,6 @@
 package it.streaminghub.tv.ui.details
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
@@ -63,6 +65,8 @@ fun DetailsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val item = uiState.item
+
+    BackHandler(onBack = onBackClick)
 
     Box(
         modifier = Modifier
@@ -217,19 +221,30 @@ fun DetailsScreen(
                         )
 
                         // Action Buttons
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            val resumeSec = uiState.resumeSeconds
-                            val hasResume = resumeSec > 10
+                        val resumeSec = uiState.resumeSeconds
+                        val hasResume = resumeSec > 10
+                        val resumeSeason = uiState.resumeSeasonNumber
+                        val resumeEp = uiState.resumeEpisodeNumber
 
+                        val resumeLabel = when {
+                            hasResume && item.type == "tv" && resumeSeason != null && resumeEp != null ->
+                                "Riprendi S${resumeSeason}:E${resumeEp} (${formatTime(resumeSec)})"
+                            hasResume ->
+                                "Riprendi da ${formatTime(resumeSec)}"
+                            else -> "Guarda"
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             TvButton(
-                                text = if (hasResume) "Riprendi da ${formatTime(resumeSec)}" else "Guarda",
+                                text = resumeLabel,
                                 icon = Icons.Default.PlayArrow,
                                 isPrimary = true,
                                 onClick = {
-                                    val source = uiState.selectedSource ?: item.sources.firstOrNull()
-                                    if (source != null) {
-                                        onPlayMovie(source.pageUrl, item.title, item.id, if (hasResume) resumeSec else 0L)
-                                    }
+                                    viewModel.playTitle(
+                                        fromBeginning = false,
+                                        onPlayMovie = onPlayMovie,
+                                        onPlayEpisode = onPlayEpisode
+                                    )
                                 }
                             )
 
@@ -238,10 +253,11 @@ fun DetailsScreen(
                                     text = "Dall'inizio",
                                     icon = Icons.Default.Replay,
                                     onClick = {
-                                        val source = uiState.selectedSource ?: item.sources.firstOrNull()
-                                        if (source != null) {
-                                            onPlayMovie(source.pageUrl, item.title, item.id, 0L)
-                                        }
+                                        viewModel.playTitle(
+                                            fromBeginning = true,
+                                            onPlayMovie = onPlayMovie,
+                                            onPlayEpisode = onPlayEpisode
+                                        )
                                     }
                                 )
                             }
@@ -251,12 +267,75 @@ fun DetailsScreen(
                                 icon = if (uiState.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                 onClick = { viewModel.toggleFavorite() }
                             )
+
+                            TvButton(
+                                text = "Aggiorna",
+                                icon = Icons.Default.Refresh,
+                                onClick = { viewModel.loadTitleDetails(refresh = true) }
+                            )
+                        }
+
+                        if (!uiState.playbackFeedbackMessage.isNullOrEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = uiState.playbackFeedbackMessage!!,
+                                color = Color(0xFFFF5252),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        // Streaming Availability (Zero Extra Cost)
+                        val streamingProviders = item.streamingAvailability?.groupedProviders ?: emptyList()
+                        if (streamingProviders.isNotEmpty()) {
+                            Column(modifier = Modifier.padding(top = 16.dp)) {
+                                Text(
+                                    text = "Disponibile in streaming su:",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    streamingProviders.forEach { provider ->
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0x33FFFFFF))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            val logo = provider.logoUrl
+                                            if (!logo.isNullOrEmpty()) {
+                                                AsyncImage(
+                                                    model = logo,
+                                                    contentDescription = provider.providerName,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(RoundedCornerShape(3.dp))
+                                                )
+                                            }
+                                            Text(
+                                                text = provider.providerName,
+                                                color = TextMain,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
                 // Source selector (if multiple sources available)
-                if (item.sources.size > 1) {
+                if (item.type != "tv" && item.resolvedSources.size > 1) {
                     item {
                         Column(modifier = Modifier.padding(top = 24.dp)) {
                             Text(
@@ -267,7 +346,7 @@ fun DetailsScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(item.sources) { src ->
+                                items(item.resolvedSources) { src ->
                                     val isSelected = uiState.selectedSource?.id == src.id
                                     SourceChip(
                                         source = src,

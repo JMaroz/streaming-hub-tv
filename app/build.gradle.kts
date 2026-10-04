@@ -1,17 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "it.streaminghub.tv"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "it.streaminghub.tv"
-        minSdk = 29
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
@@ -21,13 +22,32 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val props = project.rootProject.file("local.properties")
+            val localProperties = Properties()
+            if (props.exists()) {
+                localProperties.load(props.inputStream())
+            }
+            storeFile = file(localProperties.getProperty("RELEASE_STORE_FILE", "release-keystore.jks"))
+            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD", "")
+            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
+            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
 
@@ -36,16 +56,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=androidx.tv.material3.ExperimentalTvMaterial3Api",
-            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
-        )
-    }
-
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -66,6 +79,12 @@ dependencies {
     // Jetpack Compose for TV
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.tv:tv-foundation:1.0.0-alpha11")
+    }
+}
 
     // Compose Foundation & UI
     implementation(platform(libs.androidx.compose.bom))

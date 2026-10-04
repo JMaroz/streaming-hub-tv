@@ -119,68 +119,85 @@ fun HomeScreen(
                 }
             }
 
-            // 5. Latest Arrivals
-            if (uiState.latestTitles.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Ultimi Arrivi",
-                        items = uiState.latestTitles,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+            // 5. Dynamic Editorial Carousels OR Fallback Categorized Shelves
+            if (uiState.isCarouselsMode && uiState.carousels.isNotEmpty()) {
+                uiState.carousels.forEach { carousel ->
+                    if (carousel.items.isNotEmpty()) {
+                        item(key = "carousel_${carousel.id}") {
+                            TvShelfRow(
+                                title = carousel.title,
+                                items = carousel.items,
+                                serverUrl = uiState.serverUrl,
+                                onItemFocused = { viewModel.onCardFocused(it) },
+                                onItemClick = { onNavigateToDetails(it.type, it.id) }
+                            )
+                        }
+                    }
                 }
-            }
-
-            // 6. Latest Movies
-            if (uiState.latestMovies.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Film Recenti",
-                        items = uiState.latestMovies,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+            } else {
+                // Fallback Shelf: Latest Arrivals
+                if (uiState.latestTitles.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Ultimi Arrivi",
+                            items = uiState.latestTitles,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
                 }
-            }
 
-            // 7. Latest Series
-            if (uiState.latestSeries.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Serie TV Popolari",
-                        items = uiState.latestSeries,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+                // Fallback Shelf: Latest Movies
+                if (uiState.latestMovies.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Film Recenti",
+                            items = uiState.latestMovies,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
                 }
-            }
 
-            // 8. Animation Genre Shelf
-            if (uiState.animationTitles.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Film d'Animazione & Famiglia",
-                        items = uiState.animationTitles,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+                // Fallback Shelf: Latest Series
+                if (uiState.latestSeries.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Serie TV Popolari",
+                            items = uiState.latestSeries,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
                 }
-            }
 
-            // 9. Action Genre Shelf
-            if (uiState.actionTitles.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Azione e Avventura",
-                        items = uiState.actionTitles,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+                // Fallback Shelf: Animation
+                if (uiState.animationTitles.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Film d'Animazione & Famiglia",
+                            items = uiState.animationTitles,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
+                }
+
+                // Fallback Shelf: Action
+                if (uiState.actionTitles.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Azione e Avventura",
+                            items = uiState.actionTitles,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
                 }
             }
 

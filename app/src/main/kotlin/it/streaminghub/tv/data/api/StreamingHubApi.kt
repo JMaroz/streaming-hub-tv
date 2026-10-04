@@ -11,13 +11,17 @@ import io.ktor.http.contentType
 import it.streaminghub.tv.data.model.CatalogPageDto
 import it.streaminghub.tv.data.model.FavoriteToggleRequestDto
 import it.streaminghub.tv.data.model.FavoriteToggleResponseDto
+import it.streaminghub.tv.data.model.HomeCatalogDto
 import it.streaminghub.tv.data.model.MediaItemDto
+import it.streaminghub.tv.data.model.NextEpisodeResponseDto
 import it.streaminghub.tv.data.model.ProfileDto
 import it.streaminghub.tv.data.model.ProgressRequestDto
 import it.streaminghub.tv.data.model.ResolveRequestDto
 import it.streaminghub.tv.data.model.ResolveResponseDto
 import it.streaminghub.tv.data.model.SearchResponseDto
+import it.streaminghub.tv.data.model.SkipSegmentsResponseDto
 import it.streaminghub.tv.data.model.StatusDto
+import it.streaminghub.tv.data.model.SubtitleTrackDto
 import it.streaminghub.tv.data.model.TvSeasonDto
 import it.streaminghub.tv.data.model.WatchProgressItemDto
 
@@ -31,6 +35,16 @@ class StreamingHubApi(
 
     suspend fun getProfiles(): List<ProfileDto> {
         return client.get("$baseUrl/api/profiles").body()
+    }
+
+    suspend fun getHomeCatalog(
+        source: String = "all",
+        profileId: String = "default"
+    ): HomeCatalogDto {
+        return client.get("$baseUrl/api/catalog/home") {
+            parameter("source", source)
+            parameter("profile_id", profileId)
+        }.body()
     }
 
     suspend fun getLatest(
@@ -83,20 +97,61 @@ class StreamingHubApi(
     suspend fun getTitleDetails(
         mediaType: String,
         titleId: String,
-        profileId: String = "default"
+        profileId: String = "default",
+        refresh: Boolean = false
     ): MediaItemDto {
         return client.get("$baseUrl/api/catalog/title/$mediaType/$titleId") {
             parameter("profile_id", profileId)
+            if (refresh) parameter("refresh", "true")
         }.body()
     }
 
     suspend fun getSeasonEpisodes(
         seriesId: String,
         seasonNumber: Int,
-        profileId: String = "default"
+        profileId: String = "default",
+        refresh: Boolean = false
     ): TvSeasonDto {
         return client.get("$baseUrl/api/catalog/seasons/$seriesId/$seasonNumber") {
             parameter("profile_id", profileId)
+            if (refresh) parameter("refresh", "true")
+        }.body()
+    }
+
+    suspend fun getSkipSegments(
+        seriesId: String,
+        seasonNumber: Int,
+        episodeNumber: Int,
+        duration: Double? = null
+    ): SkipSegmentsResponseDto {
+        return client.get("$baseUrl/api/catalog/skip-segments/$seriesId/$seasonNumber/$episodeNumber") {
+            if (duration != null && duration > 0) {
+                parameter("duration", duration)
+            }
+        }.body()
+    }
+
+    suspend fun getNextEpisode(
+        seriesId: String,
+        seasonNumber: Int,
+        episodeNumber: Int
+    ): NextEpisodeResponseDto {
+        return client.get("$baseUrl/api/catalog/next-episode/$seriesId/$seasonNumber/$episodeNumber").body()
+    }
+
+    suspend fun searchSubtitles(
+        imdbId: String? = null,
+        tmdbId: Int? = null,
+        query: String? = null,
+        season: Int? = null,
+        episode: Int? = null
+    ): List<SubtitleTrackDto> {
+        return client.get("$baseUrl/api/subtitles/search") {
+            if (!imdbId.isNullOrEmpty()) parameter("imdb_id", imdbId)
+            if (tmdbId != null && tmdbId > 0) parameter("tmdb_id", tmdbId)
+            if (!query.isNullOrEmpty()) parameter("query", query)
+            if (season != null && season > 0) parameter("season", season)
+            if (episode != null && episode > 0) parameter("episode", episode)
         }.body()
     }
 

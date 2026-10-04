@@ -52,4 +52,34 @@ class PlaybackRepository(
     ): Result<List<WatchProgressItemDto>> = runCatching {
         getApi().getWatchedHistory(profileId = profileId)
     }
+
+    suspend fun getSkipSegments(
+        seriesId: String,
+        seasonNumber: Int,
+        episodeNumber: Int,
+        duration: Double? = null
+    ): Result<it.streaminghub.tv.data.model.SkipSegmentsResponseDto> = runCatching {
+        getApi().getSkipSegments(
+            seriesId = seriesId,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+            duration = duration
+        )
+    }
+
+    suspend fun searchSubtitles(
+        imdbId: String? = null,
+        tmdbId: Int? = null,
+        query: String? = null,
+        season: Int? = null,
+        episode: Int? = null
+    ): Result<List<it.streaminghub.tv.data.model.SubtitleTrackDto>> = runCatching {
+        getApi().searchSubtitles(
+            imdbId = imdbId,
+            tmdbId = tmdbId,
+            query = query,
+            season = season,
+            episode = episode
+        )
+    }
 }

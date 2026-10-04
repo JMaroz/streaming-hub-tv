@@ -45,23 +45,55 @@ fun formatImageUrl(rawUrl: String?, serverUrl: String?): String? {
 
     val cleanServer = serverUrl?.trim()?.removeSuffix("/")
 
-    return when {
-        url.startsWith("http://") || url.startsWith("https://") -> url
-        url.startsWith("//") -> "https:$url"
-        url.startsWith("/") -> {
-            if (!cleanServer.isNullOrEmpty()) {
-                "$cleanServer$url"
-            } else if (url.startsWith("/t/p/")) {
-                "https://image.tmdb.org$url"
-            } else {
-                url
-            }
+    if (url.startsWith("data:")) return url
+    if (url.contains("image.tmdb.org") || url.contains("unsplash.com")) return url
+
+    if (url.startsWith("/t/p/")) return "https://image.tmdb.org$url"
+    if (url.startsWith("t/p/")) return "https://image.tmdb.org/$url"
+
+    // Proxy external third-party images through Home Assistant addon to bypass CORS and Referer blocks
+    if (!cleanServer.isNullOrEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
+        return try {
+            val encoded = java.net.URLEncoder.encode(url, "UTF-8")
+            "$cleanServer/api/proxy/image?url=$encoded"
+        } catch (_: Exception) {
+            url
         }
-        url.startsWith("t/p/") -> "https://image.tmdb.org/$url"
-        !cleanServer.isNullOrEmpty() -> "$cleanServer/$url"
-        else -> "https://image.tmdb.org/t/p/w500/$url"
     }
+
+    if (url.startsWith("/api/") || url.startsWith("/static/") || url.startsWith("/local/") || url.startsWith("/media/") || url.startsWith("/hls/")) {
+        return if (!cleanServer.isNullOrEmpty()) "$cleanServer$url" else url
+    }
+
+    if (url.startsWith("/")) {
+        return if (!cleanServer.isNullOrEmpty()) "$cleanServer$url" else "https://image.tmdb.org/t/p/w500$url"
+    }
+
+    return if (!cleanServer.isNullOrEmpty()) "$cleanServer/$url" else url
 }
+
+@Serializable
+data class WatchProviderLogoDto(
+    @SerialName("provider_id") val providerId: Int? = null,
+    @SerialName("provider_name") val providerName: String = "",
+    @SerialName("group_id") val groupId: String? = null,
+    @SerialName("logo_path") val logoPath: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null
+)
+
+@Serializable
+data class WatchProviderGroupDto(
+    @SerialName("group_id") val groupId: String = "",
+    @SerialName("provider_name") val providerName: String = "",
+    @SerialName("logo_path") val logoPath: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null
+)
+
+@Serializable
+data class StreamingAvailabilityDto(
+    @SerialName("grouped_logos") val groupedLogos: List<WatchProviderLogoDto> = emptyList(),
+    @SerialName("grouped_providers") val groupedProviders: List<WatchProviderGroupDto> = emptyList()
+)
 
 @Serializable
 data class TvEpisodeDto(
@@ -102,9 +134,43 @@ data class MediaItemDto(
     val cast: List<String> = emptyList(),
     val director: String? = null,
     val sources: List<ProviderSourceDto> = emptyList(),
+    @SerialName("source_a_url") val sourceAUrl: String? = null,
+    @SerialName("source_b_url") val sourceBUrl: String? = null,
     val seasons: List<TvSeasonDto> = emptyList(),
-    @SerialName("is_favorite") val isFavorite: Boolean = false
+    @SerialName("is_favorite") val isFavorite: Boolean = false,
+    @SerialName("streaming_availability") val streamingAvailability: StreamingAvailabilityDto? = null
 ) {
+    val resolvedSources: List<ProviderSourceDto>
+        get() {
+            if (sources.isNotEmpty()) return sources
+            val fallbackList = mutableListOf<ProviderSourceDto>()
+            if (!sourceAUrl.isNullOrBlank()) {
+                fallbackList.add(
+                    ProviderSourceDto(
+                        id = "$id-src-a",
+                        mediaId = id,
+                        providerId = "source_a",
+                        providerName = "Streaming Community",
+                        pageUrl = sourceAUrl,
+                        available = true
+                    )
+                )
+            }
+            if (!sourceBUrl.isNullOrBlank()) {
+                fallbackList.add(
+                    ProviderSourceDto(
+                        id = "$id-src-b",
+                        mediaId = id,
+                        providerId = "source_b",
+                        providerName = "Sorgente B",
+                        pageUrl = sourceBUrl,
+                        available = true
+                    )
+                )
+            }
+            return fallbackList
+        }
+
     fun getFormattedPosterUrl(serverUrl: String?): String? {
         return formatImageUrl(posterUrl, serverUrl)
     }
@@ -199,3 +265,66 @@ data class FavoriteToggleResponseDto(
     val status: String,
     val favorite: Boolean
 )
+
+@Serializable
+data class HomeCarouselDto(
+    val id: String = "",
+    val title: String = "",
+    val count: Int = 0,
+    val items: List<MediaItemDto> = emptyList()
+)
+
+@Serializable
+data class HomeCatalogDto(
+    val mode: String = "grid", // "carousels" or "grid"
+    val source: String = "all",
+    @SerialName("profile_id") val profileId: String = "default",
+    val hero: MediaItemDto? = null,
+    val carousels: List<HomeCarouselDto> = emptyList()
+)
+
+@Serializable
+data class SkipIntervalDto(
+    val start: Double = 0.0,
+    val end: Double = 0.0
+)
+
+@Serializable
+data class SkipSegmentsResponseDto(
+    @SerialName("has_segments") val hasSegments: Boolean = false,
+    val intro: SkipIntervalDto? = null,
+    val outro: SkipIntervalDto? = null,
+    val source: String = "none"
+)
+
+@Serializable
+data class NextEpisodeDetailDto(
+    @SerialName("series_id") val seriesId: String = "",
+    @SerialName("season_number") val seasonNumber: Int = 1,
+    @SerialName("episode_number") val episodeNumber: Int = 1,
+    val episode: TvEpisodeDto
+)
+
+@Serializable
+data class NextEpisodeResponseDto(
+    @SerialName("has_next") val hasNext: Boolean = false,
+    val next: NextEpisodeDetailDto? = null
+)
+
+@Serializable
+data class SubtitleTrackDto(
+    val id: String = "",
+    val language: String = "it",
+    val label: String = "Italiano",
+    val source: String = "opensubtitles",
+    val url: String = ""
+) {
+    fun getFullUrl(serverUrl: String?): String {
+        val cleanServer = serverUrl?.trim()?.removeSuffix("/") ?: ""
+        return when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "$cleanServer$url"
+            else -> "$cleanServer/$url"
+        }
+    }
+}

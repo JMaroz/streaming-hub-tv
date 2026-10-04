@@ -3,6 +3,7 @@ package it.streaminghub.tv.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.streaminghub.tv.data.local.AppPreferences
+import it.streaminghub.tv.data.model.HomeCarouselDto
 import it.streaminghub.tv.data.model.MediaItemDto
 import it.streaminghub.tv.data.repository.CatalogRepository
 import it.streaminghub.tv.data.repository.FavoritesRepository
@@ -22,6 +23,8 @@ data class HomeUiState(
     val activeProfileName: String = "Principale",
     val heroItem: MediaItemDto? = null,
     val isHeroFavorite: Boolean = false,
+    val isCarouselsMode: Boolean = false,
+    val carousels: List<HomeCarouselDto> = emptyList(),
     val continueWatching: List<MediaItemDto> = emptyList(),
     val continueProgressMap: Map<String, Float> = emptyMap(),
     val favorites: List<MediaItemDto> = emptyList(),
@@ -77,22 +80,14 @@ class HomeViewModel(
     private suspend fun loadHomeDataForProfile(profileId: String, profileName: String) {
         _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
-        // Parallel loading using async with strict profileId scoping
+        // 1. Parallel loading: Continue Watching, Favorites and Home Editorial Carousels
         val continueDeferred = viewModelScope.async { playbackRepository.getContinueWatching(profileId) }
         val favoritesDeferred = viewModelScope.async { favoritesRepository.getFavorites(profileId) }
-        val latestDeferred = viewModelScope.async { catalogRepository.getLatest(type = "all", page = 1, profileId = profileId) }
-        val moviesDeferred = viewModelScope.async { catalogRepository.getLatest(type = "movie", page = 1, profileId = profileId) }
-        val seriesDeferred = viewModelScope.async { catalogRepository.getLatest(type = "tv", page = 1, profileId = profileId) }
-        val animDeferred = viewModelScope.async { catalogRepository.getByGenre("Animazione", type = "movie", page = 1, profileId = profileId) }
-        val actionDeferred = viewModelScope.async { catalogRepository.getByGenre("Azione", type = "movie", page = 1, profileId = profileId) }
+        val homeCatalogDeferred = viewModelScope.async { catalogRepository.getHomeCatalog(source = "all", profileId = profileId) }
 
         val continueRes = continueDeferred.await()
         val favRes = favoritesDeferred.await()
-        val latestRes = latestDeferred.await()
-        val moviesRes = moviesDeferred.await()
-        val seriesRes = seriesDeferred.await()
-        val animRes = animDeferred.await()
-        val actionRes = actionDeferred.await()
+        val homeCatalogRes = homeCatalogDeferred.await()
 
         val continueList = mutableListOf<MediaItemDto>()
         val progressMap = mutableMapOf<String, Float>()
@@ -109,30 +104,66 @@ class HomeViewModel(
         }
 
         val favList = favRes.getOrDefault(emptyList())
-        val latestList = latestRes.getOrNull()?.results ?: emptyList()
-        val movieList = moviesRes.getOrNull()?.results ?: emptyList()
-        val seriesList = seriesRes.getOrNull()?.results ?: emptyList()
-        val animList = animRes.getOrNull()?.results ?: emptyList()
-        val actionList = actionRes.getOrNull()?.results ?: emptyList()
+        val homeCatalog = homeCatalogRes.getOrNull()
 
-        val defaultHero = latestList.firstOrNull() ?: movieList.firstOrNull()
-        val isHeroFav = defaultHero?.let { h -> favList.any { it.id == h.id } } ?: false
+        if (homeCatalog != null && homeCatalog.mode == "carousels" && homeCatalog.carousels.isNotEmpty()) {
+            // Mode Carousels: Render backend editorial shelves & parental-filtered hero
+            val hero = homeCatalog.hero ?: homeCatalog.carousels.firstOrNull()?.items?.firstOrNull()
+            val isHeroFav = hero?.let { h -> favList.any { it.id == h.id } } ?: false
 
-        _uiState.value = _uiState.value.copy(
-            isLoading = false,
-            activeProfileId = profileId,
-            activeProfileName = profileName,
-            heroItem = defaultHero,
-            isHeroFavorite = isHeroFav,
-            continueWatching = continueList,
-            continueProgressMap = progressMap,
-            favorites = favList,
-            latestTitles = latestList,
-            latestMovies = movieList,
-            latestSeries = seriesList,
-            animationTitles = animList,
-            actionTitles = actionList
-        )
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                activeProfileId = profileId,
+                activeProfileName = profileName,
+                isCarouselsMode = true,
+                carousels = homeCatalog.carousels,
+                heroItem = hero,
+                isHeroFavorite = isHeroFav,
+                continueWatching = continueList,
+                continueProgressMap = progressMap,
+                favorites = favList
+            )
+        } else {
+            // Fallback Grid Mode: Fetch traditional categories
+            val latestDeferred = viewModelScope.async { catalogRepository.getLatest(type = "all", page = 1, profileId = profileId) }
+            val moviesDeferred = viewModelScope.async { catalogRepository.getLatest(type = "movie", page = 1, profileId = profileId) }
+            val seriesDeferred = viewModelScope.async { catalogRepository.getLatest(type = "tv", page = 1, profileId = profileId) }
+            val animDeferred = viewModelScope.async { catalogRepository.getByGenre("Animazione", type = "movie", page = 1, profileId = profileId) }
+            val actionDeferred = viewModelScope.async { catalogRepository.getByGenre("Azione", type = "movie", page = 1, profileId = profileId) }
+
+            val latestRes = latestDeferred.await()
+            val moviesRes = moviesDeferred.await()
+            val seriesRes = seriesDeferred.await()
+            val animRes = animDeferred.await()
+            val actionRes = actionDeferred.await()
+
+            val latestList = latestRes.getOrNull()?.results ?: emptyList()
+            val movieList = moviesRes.getOrNull()?.results ?: emptyList()
+            val seriesList = seriesRes.getOrNull()?.results ?: emptyList()
+            val animList = animRes.getOrNull()?.results ?: emptyList()
+            val actionList = actionRes.getOrNull()?.results ?: emptyList()
+
+            val defaultHero = homeCatalog?.hero ?: latestList.firstOrNull() ?: movieList.firstOrNull()
+            val isHeroFav = defaultHero?.let { h -> favList.any { it.id == h.id } } ?: false
+
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                activeProfileId = profileId,
+                activeProfileName = profileName,
+                isCarouselsMode = false,
+                carousels = emptyList(),
+                heroItem = defaultHero,
+                isHeroFavorite = isHeroFav,
+                continueWatching = continueList,
+                continueProgressMap = progressMap,
+                favorites = favList,
+                latestTitles = latestList,
+                latestMovies = movieList,
+                latestSeries = seriesList,
+                animationTitles = animList,
+                actionTitles = actionList
+            )
+        }
     }
 
     fun onCardFocused(item: MediaItemDto) {

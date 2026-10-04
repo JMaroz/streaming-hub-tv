@@ -1,6 +1,7 @@
 package it.streaminghub.tv.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -150,6 +152,32 @@ fun TvPosterCard(
                         )
                     )
             )
+
+            // Streaming Provider Mini-Logos (Zero Extra Cost)
+            val logos = item.streamingAvailability?.groupedLogos ?: emptyList()
+            if (logos.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = if (progressPercent > 0f) 8.dp else 6.dp, end = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    logos.take(2).forEach { provider ->
+                        val logoUrl = provider.logoUrl
+                        if (!logoUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = logoUrl,
+                                contentDescription = provider.providerName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            )
+                        }
+                    }
+                }
+            }
 
             // Watch Progress Bar (Continua a guardare)
             if (progressPercent > 0f) {

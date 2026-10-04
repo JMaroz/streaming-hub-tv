@@ -7,6 +7,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
+import it.streaminghub.tv.BuildConfig
 import it.streaminghub.tv.data.local.AppPreferences
 import it.streaminghub.tv.data.repository.CatalogRepository
 import it.streaminghub.tv.data.repository.FavoritesRepository
@@ -75,7 +76,11 @@ class StreamingHubApp : Application(), ImageLoaderFactory {
                     .build()
             }
             .crossfade(true)
-            .logger(DebugLogger())
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    logger(DebugLogger())
+                }
+            }
             .build()
     }
 }

@@ -214,13 +214,14 @@ fun AppNavigation(
                         return PlayerViewModel(
                             application = context.applicationContext as Application,
                             pageUrl = url,
-                            mediaTitle = title,
+                            initialMediaTitle = title,
                             mediaId = mediaId,
                             mediaType = mediaType,
                             seasonNumber = if (season != null && season >= 0) season else null,
                             episodeNumber = if (episode != null && episode >= 0) episode else null,
                             initialSeekSeconds = seek,
                             playbackRepository = app.playbackRepository,
+                            catalogRepository = app.catalogRepository,
                             preferences = app.preferences
                         ) as T
                     }
