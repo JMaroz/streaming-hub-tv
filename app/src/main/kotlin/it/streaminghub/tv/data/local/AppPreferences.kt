@@ -5,9 +5,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "tv_streaming_hub_prefs")
@@ -60,6 +62,20 @@ class AppPreferences(private val context: Context) {
     suspend fun setPreferFhd(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_PREFER_FHD] = enabled
+        }
+    }
+
+    suspend fun getLastMetadataUpdateTime(titleId: String): Long {
+        val key = longPreferencesKey("meta_updated_$titleId")
+        return context.dataStore.data.map { prefs ->
+            prefs[key] ?: 0L
+        }.firstOrNull() ?: 0L
+    }
+
+    suspend fun setLastMetadataUpdateTime(titleId: String, timestamp: Long) {
+        val key = longPreferencesKey("meta_updated_$titleId")
+        context.dataStore.edit { prefs ->
+            prefs[key] = timestamp
         }
     }
 

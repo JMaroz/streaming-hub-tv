@@ -62,7 +62,15 @@ class HomeViewModel(
                 val profileName = preferences.activeProfileName.firstOrNull() ?: "Principale"
                 _uiState.value = _uiState.value.copy(
                     activeProfileId = profileId,
-                    activeProfileName = profileName
+                    activeProfileName = profileName,
+                    isLoading = true,
+                    heroItem = null,
+                    carousels = emptyList(),
+                    continueWatching = emptyList(),
+                    favorites = emptyList(),
+                    latestTitles = emptyList(),
+                    latestMovies = emptyList(),
+                    latestSeries = emptyList()
                 )
                 loadHomeDataForProfile(profileId, profileName)
             }

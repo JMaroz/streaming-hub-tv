@@ -27,6 +27,7 @@ data class DetailsUiState(
     val resumeSeconds: Long = 0L,
     val resumeSeasonNumber: Int? = null,
     val resumeEpisodeNumber: Int? = null,
+    val resumeEpisodeTitle: String? = null,
     val errorMessage: String? = null,
     val playbackFeedbackMessage: String? = null
 )
@@ -47,14 +48,22 @@ class DetailsViewModel(
         loadTitleDetails()
     }
 
-    fun loadTitleDetails(refresh: Boolean = false) {
+    fun loadTitleDetails(manualForceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, playbackFeedbackMessage = null)
             val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
             val serverUrl = preferences.serverUrl.firstOrNull()
 
+            val now = System.currentTimeMillis()
+            val lastUpdate = preferences.getLastMetadataUpdateTime(titleId)
+            val twelveHoursMs = 12L * 60L * 60L * 1000L
+            val isExpired = (lastUpdate > 0L) && ((now - lastUpdate) >= twelveHoursMs)
+            val refresh = manualForceRefresh || isExpired
+
             catalogRepository.getTitleDetails(mediaType, titleId, profileId, refresh = refresh)
                 .onSuccess { details ->
+                    preferences.setLastMetadataUpdateTime(titleId, now)
+
                     val defaultSource = details.resolvedSources.firstOrNull { it.available } ?: details.resolvedSources.firstOrNull()
                     val isFav = details.isFavorite
 
@@ -66,21 +75,88 @@ class DetailsViewModel(
                         selectedSource = defaultSource
                     )
 
-                    // If TV series, load Season 1 episodes
+                    // If TV series, initial season selection
+                    val firstSeasonNumber = details.seasons.firstOrNull()?.number ?: 1
                     if (details.type == "tv") {
-                        val firstSeasonNumber = details.seasons.firstOrNull()?.number ?: 1
                         selectSeason(firstSeasonNumber, refresh = refresh)
                     }
 
                     // Check watch history for resume point
                     playbackRepository.getContinueWatching(profileId).onSuccess { list ->
-                        val matched = list.firstOrNull { it.mediaId == titleId }
-                        if (matched != null && matched.progressSeconds > 10) {
+                        val matched = list.firstOrNull {
+                            it.mediaId == titleId || it.mediaId.equals(titleId, ignoreCase = true) ||
+                            (it.mediaType == "tv" && it.title.startsWith(details.title, ignoreCase = true))
+                        }
+
+                        if (matched != null) {
+                            var s = matched.seasonNumber
+                            var e = matched.episodeNumber
+                            if (s == null || e == null) {
+                                val match = Regex("""[sS](\d+)[:\s]*[eE](\d+)""").find(matched.title)
+                                if (match != null) {
+                                    s = match.groupValues[1].toIntOrNull()
+                                    e = match.groupValues[2].toIntOrNull()
+                                }
+                            }
+                            val targetSeason = s ?: 1
+                            val targetEp = e ?: 1
+                            val epTitle = details.seasons.firstOrNull { it.number == targetSeason }
+                                ?.episodes?.firstOrNull { it.episodeNumber == targetEp }?.title
+
                             _uiState.value = _uiState.value.copy(
-                                resumeSeconds = matched.progressSeconds.toLong(),
-                                resumeSeasonNumber = matched.seasonNumber,
-                                resumeEpisodeNumber = matched.episodeNumber
+                                resumeSeconds = if (matched.progressSeconds > 10) matched.progressSeconds.toLong() else 0L,
+                                resumeSeasonNumber = targetSeason,
+                                resumeEpisodeNumber = targetEp,
+                                resumeEpisodeTitle = epTitle?.ifEmpty { null }
                             )
+
+                            if (details.type == "tv" && targetSeason != firstSeasonNumber) {
+                                selectSeason(targetSeason, refresh = refresh)
+                            }
+                        } else if (details.type == "tv") {
+                            // Fallback: check watched history to find last watched episode and propose next one
+                            playbackRepository.getWatchedHistory(profileId).onSuccess { watchedList ->
+                                val lastWatched = watchedList.firstOrNull {
+                                    it.mediaId == titleId || it.mediaId.equals(titleId, ignoreCase = true) ||
+                                    it.title.startsWith(details.title, ignoreCase = true)
+                                }
+                                if (lastWatched != null) {
+                                    var ws = lastWatched.seasonNumber
+                                    var we = lastWatched.episodeNumber
+                                    if (ws == null || we == null) {
+                                        val match = Regex("""[sS](\d+)[:\s]*[eE](\d+)""").find(lastWatched.title)
+                                        if (match != null) {
+                                            ws = match.groupValues[1].toIntOrNull()
+                                            we = match.groupValues[2].toIntOrNull()
+                                        }
+                                    }
+                                    if (ws != null && we != null) {
+                                        val curSeason = details.seasons.firstOrNull { it.number == ws }
+                                        val nextEp = curSeason?.episodes?.firstOrNull { it.episodeNumber == we + 1 }
+                                        if (nextEp != null) {
+                                            _uiState.value = _uiState.value.copy(
+                                                resumeSeconds = 0L,
+                                                resumeSeasonNumber = ws,
+                                                resumeEpisodeNumber = we + 1,
+                                                resumeEpisodeTitle = nextEp.title.ifEmpty { null }
+                                            )
+                                            selectSeason(ws, refresh = refresh)
+                                        } else {
+                                            val nextSeason = details.seasons.firstOrNull { it.number == ws + 1 }
+                                            val nextSeasonEp1 = nextSeason?.episodes?.firstOrNull { it.episodeNumber == 1 }
+                                            if (nextSeasonEp1 != null) {
+                                                _uiState.value = _uiState.value.copy(
+                                                    resumeSeconds = 0L,
+                                                    resumeSeasonNumber = ws + 1,
+                                                    resumeEpisodeNumber = 1,
+                                                    resumeEpisodeTitle = nextSeasonEp1.title.ifEmpty { null }
+                                                )
+                                                selectSeason(ws + 1, refresh = refresh)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -100,8 +176,13 @@ class DetailsViewModel(
 
             catalogRepository.getSeasonEpisodes(titleId, seasonNumber, profileId, refresh = refresh)
                 .onSuccess { seasonDto ->
+                    val resolvedTitle = if (_uiState.value.resumeSeasonNumber == seasonNumber && _uiState.value.resumeEpisodeNumber != null) {
+                        seasonDto.episodes.firstOrNull { it.episodeNumber == _uiState.value.resumeEpisodeNumber }?.title?.ifEmpty { null }
+                    } else null
+
                     _uiState.value = _uiState.value.copy(
-                        currentSeasonEpisodes = seasonDto.episodes
+                        currentSeasonEpisodes = seasonDto.episodes,
+                        resumeEpisodeTitle = resolvedTitle ?: _uiState.value.resumeEpisodeTitle
                     )
                 }
         }
@@ -121,16 +202,9 @@ class DetailsViewModel(
 
         if (currentItem.type == "tv") {
             viewModelScope.launch {
-                val targetSeason = if (!fromBeginning && _uiState.value.resumeSeasonNumber != null) {
-                    _uiState.value.resumeSeasonNumber!!
-                } else {
-                    currentItem.seasons.firstOrNull()?.number ?: 1
-                }
-                val targetEpisode = if (!fromBeginning && _uiState.value.resumeEpisodeNumber != null) {
-                    _uiState.value.resumeEpisodeNumber!!
-                } else {
-                    1
-                }
+                val targetSeason = _uiState.value.resumeSeasonNumber
+                    ?: (currentItem.seasons.firstOrNull()?.number ?: 1)
+                val targetEpisode = _uiState.value.resumeEpisodeNumber ?: 1
 
                 // Retrieve episodes for target season
                 val episodes = if (_uiState.value.selectedSeasonNumber == targetSeason && _uiState.value.currentSeasonEpisodes.isNotEmpty()) {

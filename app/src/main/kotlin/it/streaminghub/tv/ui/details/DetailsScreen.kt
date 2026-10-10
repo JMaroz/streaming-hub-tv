@@ -20,15 +20,20 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -46,8 +51,10 @@ import it.streaminghub.tv.data.model.ProviderSourceDto
 import it.streaminghub.tv.data.model.TvEpisodeDto
 import it.streaminghub.tv.ui.components.TvButton
 import it.streaminghub.tv.ui.components.TvEpisodeCard
+import it.streaminghub.tv.ui.components.TvLoadingSpinner
 import it.streaminghub.tv.ui.components.tvFocusable
 import it.streaminghub.tv.ui.theme.AccentGold
+import it.streaminghub.tv.ui.theme.AccentRed
 import it.streaminghub.tv.ui.theme.BgCard
 import it.streaminghub.tv.ui.theme.BgPrimary
 import it.streaminghub.tv.ui.theme.PrimaryIndigo
@@ -65,6 +72,24 @@ fun DetailsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val item = uiState.item
+
+    val playButtonFocusRequester = remember { FocusRequester() }
+    var hasRequestedInitialFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(item) {
+        if (item != null && !hasRequestedInitialFocus) {
+            hasRequestedInitialFocus = true
+            kotlinx.coroutines.delay(100)
+            try {
+                playButtonFocusRequester.requestFocus()
+            } catch (_: Exception) {
+                kotlinx.coroutines.delay(150)
+                try {
+                    playButtonFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
+        }
+    }
 
     BackHandler(onBack = onBackClick)
 
@@ -222,16 +247,28 @@ fun DetailsScreen(
 
                         // Action Buttons
                         val resumeSec = uiState.resumeSeconds
-                        val hasResume = resumeSec > 10
+                        val hasResumeSec = resumeSec > 10
                         val resumeSeason = uiState.resumeSeasonNumber
                         val resumeEp = uiState.resumeEpisodeNumber
 
-                        val resumeLabel = when {
-                            hasResume && item.type == "tv" && resumeSeason != null && resumeEp != null ->
-                                "Riprendi S${resumeSeason}:E${resumeEp} (${formatTime(resumeSec)})"
-                            hasResume ->
+                        val resumeLabel = if (item.type == "tv") {
+                            when {
+                                resumeSeason != null && resumeEp != null && hasResumeSec ->
+                                    "Riprendi S${resumeSeason}:E${resumeEp} (${formatTime(resumeSec)})"
+                                resumeSeason != null && resumeEp != null ->
+                                    "Riprendi S${resumeSeason}:E${resumeEp}"
+                                else -> {
+                                    val firstSeason = item.seasons.firstOrNull()?.number ?: 1
+                                    val firstEp = item.seasons.firstOrNull()?.episodes?.firstOrNull()?.episodeNumber ?: 1
+                                    "Inizia S${firstSeason}:E${firstEp}"
+                                }
+                            }
+                        } else {
+                            if (hasResumeSec) {
                                 "Riprendi da ${formatTime(resumeSec)}"
-                            else -> "Guarda"
+                            } else {
+                                "Inizia"
+                            }
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -239,6 +276,7 @@ fun DetailsScreen(
                                 text = resumeLabel,
                                 icon = Icons.Default.PlayArrow,
                                 isPrimary = true,
+                                modifier = Modifier.focusRequester(playButtonFocusRequester),
                                 onClick = {
                                     viewModel.playTitle(
                                         fromBeginning = false,
@@ -248,7 +286,7 @@ fun DetailsScreen(
                                 }
                             )
 
-                            if (hasResume) {
+                            if (hasResumeSec) {
                                 TvButton(
                                     text = "Dall'inizio",
                                     icon = Icons.Default.Replay,
@@ -266,12 +304,6 @@ fun DetailsScreen(
                                 text = if (uiState.isFavorite) "Nei Preferiti" else "Aggiungi",
                                 icon = if (uiState.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                 onClick = { viewModel.toggleFavorite() }
-                            )
-
-                            TvButton(
-                                text = "Aggiorna",
-                                icon = Icons.Default.Refresh,
-                                onClick = { viewModel.loadTitleDetails(refresh = true) }
                             )
                         }
 
@@ -433,6 +465,38 @@ fun DetailsScreen(
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
+                    }
+                }
+            } else if (uiState.isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TvLoadingSpinner(text = "Caricamento dettagli in corso…")
+                    }
+                }
+            } else if (uiState.errorMessage != null) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = uiState.errorMessage ?: "Errore caricamento dettagli",
+                            color = AccentRed,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TvButton(
+                            text = "Riprova",
+                            onClick = { viewModel.loadTitleDetails(manualForceRefresh = true) }
+                        )
                     }
                 }
             }
