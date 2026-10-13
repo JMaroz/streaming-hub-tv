@@ -30,9 +30,11 @@ object ApiClient {
                 socketTimeoutMillis = 20_000
             }
 
+            // ponytail: LogLevel.NONE per evitare body logging sul main thread (root cause dei frame skip).
+            // Upgrade: riattivare LogLevel.INFO solo su build di debug con flag BuildConfig.DEBUG se serve troubleshooting.
             install(Logging) {
                 logger = Logger.ANDROID
-                level = LogLevel.ALL
+                level = LogLevel.NONE
             }
         }
     }
