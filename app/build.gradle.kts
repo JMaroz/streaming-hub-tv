@@ -80,11 +80,6 @@ dependencies {
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
 
-configurations.all {
-    resolutionStrategy {
-        force("androidx.tv:tv-foundation:1.0.0-alpha11")
-    }
-}
 
     // Compose Foundation & UI
     implementation(platform(libs.androidx.compose.bom))

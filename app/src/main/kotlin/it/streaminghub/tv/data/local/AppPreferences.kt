@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
@@ -26,23 +27,23 @@ class AppPreferences(private val context: Context) {
 
     val serverUrl: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[KEY_SERVER_URL]
-    }
+    }.distinctUntilChanged()
 
     val activeProfileId: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_ACTIVE_PROFILE_ID] ?: "default"
-    }
+    }.distinctUntilChanged()
 
     val activeProfileName: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_ACTIVE_PROFILE_NAME] ?: "Principale"
-    }
+    }.distinctUntilChanged()
 
     val activeProfileAvatar: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_ACTIVE_PROFILE_AVATAR] ?: "avatar_1"
-    }
+    }.distinctUntilChanged()
 
     val preferFhd: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_PREFER_FHD] ?: true
-    }
+    }.distinctUntilChanged()
 
     suspend fun setServerUrl(url: String) {
         val cleanUrl = url.trim().removeSuffix("/")
@@ -77,6 +78,33 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[key] = timestamp
         }
+    }
+
+    suspend fun isSubtitleEnabledForMedia(profileId: String, mediaId: String): Boolean {
+        val key = booleanPreferencesKey("sub_enabled_${profileId}_$mediaId")
+        return context.dataStore.data.map { prefs ->
+            prefs[key] ?: false
+        }.firstOrNull() ?: false
+    }
+
+    suspend fun setSubtitleEnabledForMedia(profileId: String, mediaId: String, enabled: Boolean, language: String? = null) {
+        val keyEnabled = booleanPreferencesKey("sub_enabled_${profileId}_$mediaId")
+        val keyLang = stringPreferencesKey("sub_lang_${profileId}_$mediaId")
+        context.dataStore.edit { prefs ->
+            prefs[keyEnabled] = enabled
+            if (language != null) {
+                prefs[keyLang] = language
+            } else if (!enabled) {
+                prefs.remove(keyLang)
+            }
+        }
+    }
+
+    suspend fun getSubtitleLanguageForMedia(profileId: String, mediaId: String): String? {
+        val keyLang = stringPreferencesKey("sub_lang_${profileId}_$mediaId")
+        return context.dataStore.data.map { prefs ->
+            prefs[keyLang]
+        }.firstOrNull()
     }
 
     suspend fun clear() {

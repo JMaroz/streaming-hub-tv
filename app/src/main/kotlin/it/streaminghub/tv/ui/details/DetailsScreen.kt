@@ -40,9 +40,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -132,7 +132,7 @@ fun DetailsScreen(
             )
         }
 
-        TvLazyColumn(
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 28.dp)
         ) {
@@ -377,7 +377,7 @@ fun DetailsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(item.resolvedSources) { src ->
                                     val isSelected = uiState.selectedSource?.id == src.id
                                     SourceChip(
@@ -405,7 +405,7 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Seasons Tabs
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(item.seasons) { season ->
                                     val isSelected = uiState.selectedSeasonNumber == season.number
                                     SeasonTab(
@@ -419,7 +419,7 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             // Episodes Shelf
-                            TvLazyRow(
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {

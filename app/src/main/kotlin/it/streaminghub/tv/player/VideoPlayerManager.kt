@@ -51,9 +51,24 @@ class VideoPlayerManager(
         setParameters(
             buildUponParameters()
                 .setPreferredAudioLanguage("ita")
-                .setPreferredTextLanguage("ita")
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                 .setSelectUndeterminedTextLanguage(false)
         )
+    }
+
+    private var pendingSubtitlePreference: Pair<Boolean, String?>? = null
+
+    fun setInitialSubtitlePreference(enabled: Boolean, preferredLanguage: String? = null) {
+        pendingSubtitlePreference = Pair(enabled, preferredLanguage)
+        trackSelector.parameters = trackSelector.parameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+            .apply {
+                if (enabled && !preferredLanguage.isNullOrEmpty()) {
+                    setPreferredTextLanguage(preferredLanguage)
+                }
+            }
+            .build()
     }
 
     private val loadControl = DefaultLoadControl.Builder()
@@ -191,6 +206,7 @@ class VideoPlayerManager(
             trackSelector.parameters = trackSelector.parameters
                 .buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                 .build()
         } else {
             val tracks = exoPlayer.currentTracks
@@ -267,6 +283,28 @@ class VideoPlayerManager(
                     )
                 }
             }
+        }
+
+        val hasPendingPref = pendingSubtitlePreference
+        if (hasPendingPref?.first == true) {
+            pendingSubtitlePreference = null
+            if (subtitles.isNotEmpty() && subtitles.none { it.isSelected }) {
+                val preferredLang = hasPendingPref.second
+                val targetTrack = subtitles.firstOrNull { track ->
+                    preferredLang != null && (
+                        track.language.equals(preferredLang, ignoreCase = true) ||
+                        track.label.contains(preferredLang, ignoreCase = true)
+                    )
+                } ?: subtitles.firstOrNull { it.language.equals("it", ignoreCase = true) || it.language.equals("ita", ignoreCase = true) }
+                  ?: subtitles.firstOrNull()
+
+                if (targetTrack != null) {
+                    selectSubtitleTrack(targetTrack)
+                    return
+                }
+            }
+        } else if (hasPendingPref?.first == false) {
+            pendingSubtitlePreference = null
         }
 
         _uiState.value = _uiState.value.copy(

@@ -216,6 +216,11 @@ class PlayerViewModel(
             _resolutionState.value = StreamResolutionState(isResolving = true)
             val serverUrl = preferences.serverUrl.firstOrNull()
 
+            val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
+            val isSubEnabled = preferences.isSubtitleEnabledForMedia(profileId, mediaId)
+            val savedSubLang = if (isSubEnabled) preferences.getSubtitleLanguageForMedia(profileId, mediaId) else null
+            playerManager.setInitialSubtitlePreference(enabled = isSubEnabled, preferredLanguage = savedSubLang)
+
             // Concurrently search subtitles if available
             val subtitleConfigList = mutableListOf<MediaItem.SubtitleConfiguration>()
             try {
@@ -231,18 +236,19 @@ class PlayerViewModel(
                         .setMimeType(MimeTypes.TEXT_VTT)
                         .setLanguage(sub.language)
                         .setLabel(sub.label)
-                        .setSelectionFlags(if (sub.language.equals("it", ignoreCase = true)) C.SELECTION_FLAG_DEFAULT else 0)
+                        .setSelectionFlags(0)
                         .build()
                     subtitleConfigList.add(config)
                 }
             } catch (_: Exception) {}
 
+            val preferFhd = preferences.preferFhd.firstOrNull() ?: true
             playbackRepository.resolveStream(
                 pageUrl = pageUrl,
                 providerId = null,
                 mediaId = mediaId,
-                quality = "1080p",
-                preferFhd = true
+                quality = if (preferFhd) "1080p" else "720p",
+                preferFhd = preferFhd
             ).onSuccess { res ->
                 _resolutionState.value = StreamResolutionState(
                     isResolving = false,
@@ -302,7 +308,22 @@ class PlayerViewModel(
     fun seekBack() = playerManager.seekBack(10_000L)
     fun seekTo(posMs: Long) = playerManager.seekTo(posMs)
     fun selectAudio(track: TrackInfo) = playerManager.selectAudioTrack(track)
-    fun selectSubtitle(track: TrackInfo?) = playerManager.selectSubtitleTrack(track)
+    fun selectSubtitle(track: TrackInfo?) {
+        playerManager.selectSubtitleTrack(track)
+        viewModelScope.launch {
+            val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
+            if (track == null) {
+                preferences.setSubtitleEnabledForMedia(profileId, mediaId, enabled = false)
+            } else {
+                preferences.setSubtitleEnabledForMedia(
+                    profileId = profileId,
+                    mediaId = mediaId,
+                    enabled = true,
+                    language = track.language ?: track.label
+                )
+            }
+        }
+    }
 
     override fun onCleared() {
         reportProgress()

@@ -54,8 +54,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -428,7 +428,7 @@ fun PlayerScreen(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.width(90.dp)
                                 )
-                                TvLazyRow(
+                                LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -461,7 +461,7 @@ fun PlayerScreen(
                                     modifier = Modifier.width(90.dp)
                                 )
                                 val noneSelected = playerUiState.subtitleTracks.none { it.isSelected }
-                                TvLazyRow(
+                                LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {

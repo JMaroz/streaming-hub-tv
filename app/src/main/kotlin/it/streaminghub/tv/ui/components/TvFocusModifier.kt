@@ -1,5 +1,6 @@
 package it.streaminghub.tv.ui.components
 
+import android.view.KeyEvent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import it.streaminghub.tv.ui.theme.FocusBorderColor
@@ -67,17 +69,30 @@ fun Modifier.tvFocusable(
             isFocused = focusState.isFocused
             onFocusChanged?.invoke(focusState.isFocused)
         }
-        .focusable(enabled = enabled, interactionSource = interactionSource)
         .then(
             if (onClick != null) {
-                Modifier.clickable(
-                    enabled = enabled,
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                )
-            } else {
                 Modifier
+                    .onKeyEvent { keyEvent ->
+                        if (enabled &&
+                            keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_UP &&
+                            (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                             keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_ENTER ||
+                             keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+                        ) {
+                            onClick()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    .clickable(
+                        enabled = enabled,
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+            } else {
+                Modifier.focusable(enabled = enabled, interactionSource = interactionSource)
             }
         )
 }

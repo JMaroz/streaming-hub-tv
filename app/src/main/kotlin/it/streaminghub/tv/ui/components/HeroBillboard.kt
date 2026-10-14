@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -49,6 +51,7 @@ fun HeroBillboard(
     modifier: Modifier = Modifier,
     serverUrl: String? = null,
     isFavorite: Boolean = false,
+    playButtonFocusRequester: FocusRequester? = null,
     onPlayClick: () -> Unit,
     onDetailsClick: () -> Unit,
     onToggleFavorite: () -> Unit
@@ -209,6 +212,7 @@ fun HeroBillboard(
                         text = "Guarda Ora",
                         icon = Icons.Default.PlayArrow,
                         isPrimary = true,
+                        modifier = if (playButtonFocusRequester != null) Modifier.focusRequester(playButtonFocusRequester) else Modifier,
                         onClick = onPlayClick
                     )
 

@@ -17,17 +17,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -69,6 +73,17 @@ fun ProfilePickerScreen(
     val pinProfile by viewModel.selectedProfileForPin.collectAsState()
     val enteredPin by viewModel.enteredPin.collectAsState()
 
+    val firstProfileFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(profiles, isLoading) {
+        if (!isLoading && profiles.isNotEmpty()) {
+            kotlinx.coroutines.delay(150)
+            try {
+                firstProfileFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -103,13 +118,14 @@ fun ProfilePickerScreen(
                     fontSize = 16.sp
                 )
             } else {
-                TvLazyRow(
+                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(28.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(profiles, key = { it.id }) { profile ->
+                    itemsIndexed(profiles, key = { _, p -> p.id }) { index, profile ->
                         ProfileCard(
                             profile = profile,
+                            focusRequester = if (index == 0) firstProfileFocusRequester else null,
                             onClick = {
                                 viewModel.onProfileClicked(profile, onProfileSelected)
                             }
@@ -244,6 +260,7 @@ fun ProfilePickerScreen(
 @Composable
 private fun ProfileCard(
     profile: ProfileDto,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -256,6 +273,7 @@ private fun ProfileCard(
         Box(
             modifier = Modifier
                 .size(110.dp)
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .tvFocusable(shape = shape, onClick = onClick)
                 .clip(shape)
                 .background(avatarBgColor),

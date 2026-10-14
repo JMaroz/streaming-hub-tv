@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import it.streaminghub.tv.ui.navigation.AppNavigation
@@ -26,17 +27,21 @@ class MainActivity : ComponentActivity() {
             TvStreamingHubTheme {
                 val serverUrl by app.preferences.serverUrl.collectAsState(initial = "LOADING")
 
+                // NavController vive qui: non viene ricreato ad ogni emissione DataStore.
+                // La startDestination è calcolata una sola volta al primo serverUrl valido.
+                val navController = rememberNavController()
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(BgPrimary)
                 ) {
                     if (serverUrl != "LOADING") {
-                        val navController = rememberNavController()
-                        val startRoute = if (serverUrl.isNullOrEmpty()) {
-                            NavRoutes.Setup.route
-                        } else {
-                            NavRoutes.Profiles.route
+                        // remember { } garantisce che startRoute non cambi se serverUrl viene
+                        // riemesso da DataStore (es. dopo setActiveProfile) — evita reset nav.
+                        val startRoute = remember {
+                            if (serverUrl.isNullOrEmpty()) NavRoutes.Setup.route
+                            else NavRoutes.Profiles.route
                         }
 
                         AppNavigation(

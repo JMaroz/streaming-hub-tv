@@ -26,12 +26,17 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -40,7 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -68,6 +73,28 @@ fun HomeScreen(
     onQuickPlay: (MediaItemDto) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    val heroPlayFocusRequester = remember { FocusRequester() }
+    var hasRequestedHeroFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.activeProfileName) {
+        hasRequestedHeroFocus = false
+    }
+
+    LaunchedEffect(uiState.heroItem, uiState.isLoading) {
+        if (!uiState.isLoading && uiState.heroItem != null && !hasRequestedHeroFocus) {
+            hasRequestedHeroFocus = true
+            kotlinx.coroutines.delay(200)
+            try {
+                heroPlayFocusRequester.requestFocus()
+            } catch (_: Exception) {
+                kotlinx.coroutines.delay(200)
+                try {
+                    heroPlayFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -123,7 +150,7 @@ fun HomeScreen(
                 }
             }
         } else {
-            TvLazyColumn(
+            LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
                 // 1. Top Navigation Bar
@@ -142,6 +169,7 @@ fun HomeScreen(
                     item = uiState.heroItem,
                     serverUrl = uiState.serverUrl,
                     isFavorite = uiState.isHeroFavorite,
+                    playButtonFocusRequester = heroPlayFocusRequester,
                     onPlayClick = {
                         uiState.heroItem?.let { onQuickPlay(it) }
                     },
