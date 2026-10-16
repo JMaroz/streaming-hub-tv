@@ -40,13 +40,13 @@ fun Modifier.tvFocusable(
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) focusedScale else 1.0f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
         label = "tv_focus_scale"
     )
 
     val shadowElevation by animateFloatAsState(
         targetValue = if (isFocused) 16f else 0f,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = 180),
         label = "tv_focus_shadow"
     )
 
@@ -61,7 +61,7 @@ fun Modifier.tvFocusable(
             spotColor = PrimaryGlow
         )
         .border(
-            width = if (isFocused) focusedBorderWidth else 1.dp,
+            width = focusedBorderWidth,
             color = if (isFocused) focusedBorderColor else unfocusedBorderColor,
             shape = shape
         )

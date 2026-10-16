@@ -1,6 +1,9 @@
 package it.streaminghub.tv.ui.player
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.view.KeyEvent
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +52,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +91,7 @@ fun PlayerScreen(
     val bingeState by viewModel.bingeState.collectAsState()
 
     var showControls by remember { mutableStateOf(true) }
+    var quickSeekIndicator by remember { mutableStateOf<String?>(null) }
     var userInteractionTrigger by remember { mutableIntStateOf(0) }
 
     val rootPlayerFocusRequester = remember { FocusRequester() }
@@ -92,11 +102,61 @@ fun PlayerScreen(
     BackHandler {
         when {
             bingeState.isInsideCredits -> viewModel.dismissNextEpisodePrompt()
-            showControls -> showControls = false
+            showControls -> {
+                showControls = false
+                try {
+                    rootPlayerFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
             else -> {
                 viewModel.reportProgress()
                 onExit()
             }
+        }
+    }
+
+    // Auto-dismiss quick seek HUD badge after 2 seconds
+    LaunchedEffect(quickSeekIndicator) {
+        if (quickSeekIndicator != null) {
+            delay(2000)
+            quickSeekIndicator = null
+        }
+    }
+
+    // OLED Screensaver & Window keep-screen-on:
+    // Keep screen awake dynamically during active playback; release in pause or on exit.
+    val context = LocalContext.current
+    DisposableEffect(playerUiState.isPlaying) {
+        val activity = context as? Activity ?: (context as? ContextWrapper)?.baseContext as? Activity
+        val window = activity?.window
+        if (playerUiState.isPlaying) {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Lifecycle handler: pause playback and report progress when user exits app or turns off screen/TV
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    viewModel.pausePlayback()
+                    viewModel.reportProgress()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    viewModel.pausePlayback()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -127,70 +187,87 @@ fun PlayerScreen(
             .background(Color.Black)
             .focusRequester(rootPlayerFocusRequester)
             .focusable()
-            .onKeyEvent { keyEvent ->
+            .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     val keyCode = keyEvent.nativeKeyEvent.keyCode
+
+                    // 1. Intercept BACK in preview (tunneling) phase:
+                    // Prevents Compose FocusOwner from simply clearing focus and leaving controls trapped!
                     if (keyCode == KeyEvent.KEYCODE_BACK) {
-                        return@onKeyEvent false // Managed by BackHandler
+                        if (bingeState.isInsideCredits) {
+                            viewModel.dismissNextEpisodePrompt()
+                            return@onPreviewKeyEvent true
+                        }
+                        if (showControls) {
+                            showControls = false
+                            try {
+                                rootPlayerFocusRequester.requestFocus()
+                            } catch (_: Exception) {}
+                            return@onPreviewKeyEvent true
+                        }
+                        // Allow bubble to BackHandler to report progress and exit safely
+                        return@onPreviewKeyEvent false
                     }
 
                     userInteractionTrigger++
 
+                    // 2. Hardware media keys (active both when controls are open or hidden)
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        KeyEvent.KEYCODE_MEDIA_PLAY,
+                        KeyEvent.KEYCODE_MEDIA_PAUSE,
+                        KeyEvent.KEYCODE_HEADSETHOOK -> {
+                            viewModel.togglePlayPause()
+                            return@onPreviewKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_STOP -> {
+                            viewModel.pausePlayback()
+                            viewModel.reportProgress()
+                            onExit()
+                            return@onPreviewKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                            viewModel.seekBack()
+                            if (!showControls) quickSeekIndicator = "-10s"
+                            return@onPreviewKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                            viewModel.seekForward()
+                            if (!showControls) quickSeekIndicator = "+10s"
+                            return@onPreviewKeyEvent true
+                        }
+                    }
+
+                    // 3. Direct shortcuts when controls are HIDDEN
                     if (!showControls) {
-                        // Direct remote shortcut for Skip Intro when visible
                         if (bingeState.isInsideIntro && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
                             viewModel.skipIntro()
-                            return@onKeyEvent true
+                            return@onPreviewKeyEvent true
                         }
-
-                        // Direct remote shortcut for Next Episode transition banner when visible
                         if (bingeState.isInsideCredits && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
                             viewModel.playNextEpisode()
-                            return@onKeyEvent true
+                            return@onPreviewKeyEvent true
                         }
 
-                        // Hardware media buttons
                         when (keyCode) {
-                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                                viewModel.togglePlayPause()
-                                return@onKeyEvent true
-                            }
-                            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
                                 viewModel.seekBack()
-                                return@onKeyEvent true
+                                quickSeekIndicator = "-10s"
+                                return@onPreviewKeyEvent true
                             }
-                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
                                 viewModel.seekForward()
-                                return@onKeyEvent true
+                                quickSeekIndicator = "+10s"
+                                return@onPreviewKeyEvent true
                             }
                             KeyEvent.KEYCODE_DPAD_CENTER,
                             KeyEvent.KEYCODE_ENTER,
                             KeyEvent.KEYCODE_DPAD_UP,
-                            KeyEvent.KEYCODE_DPAD_DOWN,
-                            KeyEvent.KEYCODE_DPAD_LEFT,
-                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                quickSeekIndicator = null
                                 showControls = true
-                                return@onKeyEvent true
+                                return@onPreviewKeyEvent true
                             }
-                        }
-                        return@onKeyEvent false
-                    }
-
-                    // When controls are visible:
-                    // Only consume dedicated hardware media keys at root level,
-                    // let D-pad navigation flow freely to child controls!
-                    when (keyCode) {
-                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                            viewModel.togglePlayPause()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                            viewModel.seekBack()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                            viewModel.seekForward()
-                            return@onKeyEvent true
                         }
                     }
                     false
@@ -492,6 +569,38 @@ fun PlayerScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Quick Seek Indicator Floating Badge (-10s / +10s)
+        AnimatedVisibility(
+            visible = quickSeekIndicator != null && !showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 60.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xD90B0F19))
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (quickSeekIndicator == "-10s") Icons.Default.Replay10 else Icons.Default.Forward10,
+                    contentDescription = null,
+                    tint = PrimaryIndigo,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "${quickSeekIndicator}   ${formatDuration(playerUiState.currentPositionMs)}",
+                    color = TextMain,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 

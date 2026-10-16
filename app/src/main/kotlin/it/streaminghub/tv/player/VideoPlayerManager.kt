@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.session.MediaSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -88,6 +89,8 @@ class VideoPlayerManager(
         .setTrackSelector(trackSelector)
         .setLoadControl(loadControl)
         .build()
+
+    val mediaSession: MediaSession = MediaSession.Builder(context, exoPlayer).build()
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -169,6 +172,12 @@ class VideoPlayerManager(
             exoPlayer.pause()
         } else {
             exoPlayer.play()
+        }
+    }
+
+    fun pausePlayback() {
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
         }
     }
 
@@ -315,6 +324,9 @@ class VideoPlayerManager(
 
     fun release() {
         stopProgressTracker()
+        try {
+            mediaSession.release()
+        } catch (_: Exception) {}
         exoPlayer.stop()
         exoPlayer.release()
     }

@@ -1,12 +1,5 @@
 package it.streaminghub.tv.ui.home
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,11 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +49,6 @@ import it.streaminghub.tv.ui.components.tvFocusable
 import it.streaminghub.tv.ui.theme.AccentRed
 import it.streaminghub.tv.ui.theme.BgPrimary
 import it.streaminghub.tv.ui.theme.PrimaryIndigo
-import it.streaminghub.tv.ui.theme.TextDim
 import it.streaminghub.tv.ui.theme.TextMain
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -81,18 +70,13 @@ fun HomeScreen(
         hasRequestedHeroFocus = false
     }
 
-    LaunchedEffect(uiState.heroItem, uiState.isLoading) {
+    LaunchedEffect(uiState.isLoading) {
         if (!uiState.isLoading && uiState.heroItem != null && !hasRequestedHeroFocus) {
             hasRequestedHeroFocus = true
             kotlinx.coroutines.delay(200)
             try {
                 heroPlayFocusRequester.requestFocus()
-            } catch (_: Exception) {
-                kotlinx.coroutines.delay(200)
-                try {
-                    heroPlayFocusRequester.requestFocus()
-                } catch (_: Exception) {}
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -105,6 +89,8 @@ fun HomeScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 TopTvNavigationBar(
                     profileName = uiState.activeProfileName,
+                    selectedSection = uiState.selectedSection,
+                    onSelectSection = { viewModel.selectSection(it) },
                     onSearchClick = onNavigateToSearch,
                     onProfileClick = onNavigateToProfiles,
                     onSettingsClick = onNavigateToSettings
@@ -124,6 +110,8 @@ fun HomeScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 TopTvNavigationBar(
                     profileName = uiState.activeProfileName,
+                    selectedSection = uiState.selectedSection,
+                    onSelectSection = { viewModel.selectSection(it) },
                     onSearchClick = onNavigateToSearch,
                     onProfileClick = onNavigateToProfiles,
                     onSettingsClick = onNavigateToSettings
@@ -153,72 +141,153 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // 1. Top Navigation Bar
+                // 1. Top Navigation Bar with Section Tabs
                 item {
                     TopTvNavigationBar(
                         profileName = uiState.activeProfileName,
+                        selectedSection = uiState.selectedSection,
+                        onSelectSection = { viewModel.selectSection(it) },
                         onSearchClick = onNavigateToSearch,
                         onProfileClick = onNavigateToProfiles,
                         onSettingsClick = onNavigateToSettings
                     )
                 }
 
-            // 2. Hero Billboard
-            item {
-                HeroBillboard(
-                    item = uiState.heroItem,
-                    serverUrl = uiState.serverUrl,
-                    isFavorite = uiState.isHeroFavorite,
-                    playButtonFocusRequester = heroPlayFocusRequester,
-                    onPlayClick = {
-                        uiState.heroItem?.let { onQuickPlay(it) }
-                    },
-                    onDetailsClick = {
-                        uiState.heroItem?.let {
-                            onNavigateToDetails(it.type, it.id)
+                // 2. Hero Billboard (Stable per section)
+                item {
+                    HeroBillboard(
+                        item = uiState.heroItem,
+                        serverUrl = uiState.serverUrl,
+                        isFavorite = uiState.isHeroFavorite,
+                        playButtonFocusRequester = heroPlayFocusRequester,
+                        onPlayClick = {
+                            uiState.heroItem?.let { onQuickPlay(it) }
+                        },
+                        onDetailsClick = {
+                            uiState.heroItem?.let {
+                                onNavigateToDetails(it.type, it.id)
+                            }
+                        },
+                        onToggleFavorite = {
+                            viewModel.toggleFavoriteHero()
                         }
-                    },
-                    onToggleFavorite = {
-                        viewModel.toggleFavoriteHero()
+                    )
+                }
+
+                // 3. Continue Watching Shelf (Filtered for current section)
+                if (uiState.continueWatching.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "Continua a guardare",
+                            items = uiState.continueWatching,
+                            serverUrl = uiState.serverUrl,
+                            progressMap = uiState.continueProgressMap,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
                     }
-                )
-            }
-
-            // 3. Continue Watching Shelf
-            if (uiState.continueWatching.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "Continua a guardare",
-                        items = uiState.continueWatching,
-                        serverUrl = uiState.serverUrl,
-                        progressMap = uiState.continueProgressMap,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
                 }
-            }
 
-            // 4. Favorites Shelf
-            if (uiState.favorites.isNotEmpty()) {
-                item {
-                    TvShelfRow(
-                        title = "I Tuoi Preferiti",
-                        items = uiState.favorites,
-                        serverUrl = uiState.serverUrl,
-                        onItemFocused = { viewModel.onCardFocused(it) },
-                        onItemClick = { onNavigateToDetails(it.type, it.id) }
-                    )
+                // 4. Favorites Shelf (Filtered for current section)
+                if (uiState.favorites.isNotEmpty()) {
+                    item {
+                        TvShelfRow(
+                            title = "I Tuoi Preferiti",
+                            items = uiState.favorites,
+                            serverUrl = uiState.serverUrl,
+                            onItemFocused = { viewModel.onCardFocused(it) },
+                            onItemClick = { onNavigateToDetails(it.type, it.id) }
+                        )
+                    }
                 }
-            }
 
-            // 5. Dynamic Editorial Carousels OR Fallback Categorized Shelves
-            if (uiState.isCarouselsMode && uiState.carousels.isNotEmpty()) {
-                uiState.carousels.forEach { carousel ->
-                    if (carousel.items.isNotEmpty()) {
-                        item(key = "carousel_${carousel.id}") {
+                // 5. Section Specific Category Shelves (Film, Serie TV, Anime, etc.)
+                if (uiState.categoryShelves.isNotEmpty()) {
+                    uiState.categoryShelves.forEach { (shelfTitle, shelfItems) ->
+                        if (shelfItems.isNotEmpty()) {
+                            item(key = "shelf_${uiState.selectedSection.id}_$shelfTitle") {
+                                TvShelfRow(
+                                    title = shelfTitle,
+                                    items = shelfItems,
+                                    serverUrl = uiState.serverUrl,
+                                    onItemFocused = { viewModel.onCardFocused(it) },
+                                    onItemClick = { onNavigateToDetails(it.type, it.id) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 6. Dynamic Editorial Carousels (for Home/Tutti or Anime when in carousel mode)
+                if (uiState.isCarouselsMode && uiState.carousels.isNotEmpty()) {
+                    uiState.carousels.forEach { carousel ->
+                        if (carousel.items.isNotEmpty()) {
+                            item(key = "carousel_${carousel.id}") {
+                                TvShelfRow(
+                                    title = carousel.title,
+                                    items = carousel.items,
+                                    serverUrl = uiState.serverUrl,
+                                    onItemFocused = { viewModel.onCardFocused(it) },
+                                    onItemClick = { onNavigateToDetails(it.type, it.id) }
+                                )
+                            }
+                        }
+                    }
+                } else if (uiState.categoryShelves.isEmpty()) {
+                    // Fallback Shelves if no category shelves are populated
+                    if (uiState.latestTitles.isNotEmpty()) {
+                        item {
                             TvShelfRow(
-                                title = carousel.title,
-                                items = carousel.items,
+                                title = "Ultimi Arrivi",
+                                items = uiState.latestTitles,
+                                serverUrl = uiState.serverUrl,
+                                onItemFocused = { viewModel.onCardFocused(it) },
+                                onItemClick = { onNavigateToDetails(it.type, it.id) }
+                            )
+                        }
+                    }
+
+                    if (uiState.latestMovies.isNotEmpty()) {
+                        item {
+                            TvShelfRow(
+                                title = "Film Recenti",
+                                items = uiState.latestMovies,
+                                serverUrl = uiState.serverUrl,
+                                onItemFocused = { viewModel.onCardFocused(it) },
+                                onItemClick = { onNavigateToDetails(it.type, it.id) }
+                            )
+                        }
+                    }
+
+                    if (uiState.latestSeries.isNotEmpty()) {
+                        item {
+                            TvShelfRow(
+                                title = "Serie TV Popolari",
+                                items = uiState.latestSeries,
+                                serverUrl = uiState.serverUrl,
+                                onItemFocused = { viewModel.onCardFocused(it) },
+                                onItemClick = { onNavigateToDetails(it.type, it.id) }
+                            )
+                        }
+                    }
+
+                    if (uiState.animationTitles.isNotEmpty()) {
+                        item {
+                            TvShelfRow(
+                                title = "Film d'Animazione & Famiglia",
+                                items = uiState.animationTitles,
+                                serverUrl = uiState.serverUrl,
+                                onItemFocused = { viewModel.onCardFocused(it) },
+                                onItemClick = { onNavigateToDetails(it.type, it.id) }
+                            )
+                        }
+                    }
+
+                    if (uiState.actionTitles.isNotEmpty()) {
+                        item {
+                            TvShelfRow(
+                                title = "Azione e Avventura",
+                                items = uiState.actionTitles,
                                 serverUrl = uiState.serverUrl,
                                 onItemFocused = { viewModel.onCardFocused(it) },
                                 onItemClick = { onNavigateToDetails(it.type, it.id) }
@@ -226,77 +295,11 @@ fun HomeScreen(
                         }
                     }
                 }
-            } else {
-                // Fallback Shelf: Latest Arrivals
-                if (uiState.latestTitles.isNotEmpty()) {
-                    item {
-                        TvShelfRow(
-                            title = "Ultimi Arrivi",
-                            items = uiState.latestTitles,
-                            serverUrl = uiState.serverUrl,
-                            onItemFocused = { viewModel.onCardFocused(it) },
-                            onItemClick = { onNavigateToDetails(it.type, it.id) }
-                        )
-                    }
-                }
 
-                // Fallback Shelf: Latest Movies
-                if (uiState.latestMovies.isNotEmpty()) {
-                    item {
-                        TvShelfRow(
-                            title = "Film Recenti",
-                            items = uiState.latestMovies,
-                            serverUrl = uiState.serverUrl,
-                            onItemFocused = { viewModel.onCardFocused(it) },
-                            onItemClick = { onNavigateToDetails(it.type, it.id) }
-                        )
-                    }
-                }
-
-                // Fallback Shelf: Latest Series
-                if (uiState.latestSeries.isNotEmpty()) {
-                    item {
-                        TvShelfRow(
-                            title = "Serie TV Popolari",
-                            items = uiState.latestSeries,
-                            serverUrl = uiState.serverUrl,
-                            onItemFocused = { viewModel.onCardFocused(it) },
-                            onItemClick = { onNavigateToDetails(it.type, it.id) }
-                        )
-                    }
-                }
-
-                // Fallback Shelf: Animation
-                if (uiState.animationTitles.isNotEmpty()) {
-                    item {
-                        TvShelfRow(
-                            title = "Film d'Animazione & Famiglia",
-                            items = uiState.animationTitles,
-                            serverUrl = uiState.serverUrl,
-                            onItemFocused = { viewModel.onCardFocused(it) },
-                            onItemClick = { onNavigateToDetails(it.type, it.id) }
-                        )
-                    }
-                }
-
-                // Fallback Shelf: Action
-                if (uiState.actionTitles.isNotEmpty()) {
-                    item {
-                        TvShelfRow(
-                            title = "Azione e Avventura",
-                            items = uiState.actionTitles,
-                            serverUrl = uiState.serverUrl,
-                            onItemFocused = { viewModel.onCardFocused(it) },
-                            onItemClick = { onNavigateToDetails(it.type, it.id) }
-                        )
-                    }
+                item {
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
-
-            item {
-                Spacer(modifier = Modifier.height(48.dp))
-            }
-        }
         }
     }
 }
@@ -305,6 +308,8 @@ fun HomeScreen(
 @Composable
 private fun TopTvNavigationBar(
     profileName: String,
+    selectedSection: HomeSection,
+    onSelectSection: (HomeSection) -> Unit,
     onSearchClick: () -> Unit,
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit
@@ -315,7 +320,7 @@ private fun TopTvNavigationBar(
             .padding(horizontal = 48.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Official Brand Logo matching Home Assistant Streaming Hub
+        // Official Brand Logo
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_brand_logo),
@@ -336,6 +341,21 @@ private fun TopTvNavigationBar(
                     color = PrimaryIndigo,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+
+        // Section Navigation Tabs (Tutti, Film, Serie TV, Anime)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 28.dp)
+        ) {
+            HomeSection.entries.forEach { section ->
+                NavTabButton(
+                    title = section.title,
+                    isSelected = section == selectedSection,
+                    onClick = { onSelectSection(section) }
                 )
             }
         }
@@ -364,6 +384,30 @@ private fun TopTvNavigationBar(
                 onClick = onSettingsClick
             )
         }
+    }
+}
+
+@Composable
+private fun NavTabButton(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        modifier = Modifier
+            .tvFocusable(shape = shape, onClick = onClick)
+            .clip(shape)
+            .background(if (isSelected) PrimaryIndigo else Color(0x26FFFFFF))
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = if (isSelected) Color.White else TextMain,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
@@ -422,4 +466,3 @@ private fun NavProfilePill(
         )
     }
 }
-

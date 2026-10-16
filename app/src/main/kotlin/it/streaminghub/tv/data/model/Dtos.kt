@@ -66,7 +66,13 @@ fun formatImageUrl(rawUrl: String?, serverUrl: String?): String? {
     }
 
     if (url.startsWith("/")) {
-        return if (!cleanServer.isNullOrEmpty()) "$cleanServer$url" else "https://image.tmdb.org/t/p/w500$url"
+        val cleanPath = when {
+            url.startsWith("/t/p/w500/") -> url.removePrefix("/t/p/w500")
+            url.startsWith("/t/p/original/") -> url.removePrefix("/t/p/original")
+            url.startsWith("/t/p/") -> "/" + url.substringAfter("/t/p/").substringAfter("/")
+            else -> url
+        }
+        return "https://image.tmdb.org/t/p/w500$cleanPath"
     }
 
     return if (!cleanServer.isNullOrEmpty()) "$cleanServer/$url" else url
@@ -104,10 +110,21 @@ data class TvEpisodeDto(
     val title: String = "",
     val description: String? = null,
     @SerialName("poster_url") val posterUrl: String? = null,
+    @SerialName("still_path") val stillPath: String? = null,
+    @SerialName("still_url") val stillUrl: String? = null,
+    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
     val sources: List<ProviderSourceDto> = emptyList()
 ) {
+    val effectivePosterUrl: String?
+        get() = posterUrl?.ifBlank { null }
+            ?: stillUrl?.ifBlank { null }
+            ?: stillPath?.ifBlank { null }
+            ?: thumbnailUrl?.ifBlank { null }
+            ?: imageUrl?.ifBlank { null }
+
     fun getFormattedPosterUrl(serverUrl: String?): String? {
-        return formatImageUrl(posterUrl, serverUrl)
+        return formatImageUrl(effectivePosterUrl, serverUrl)
     }
 }
 

@@ -1,26 +1,29 @@
 # Handoff - Streaming Hub TV
 
 ## Stato Corrente
-Completata con successo la risoluzione delle criticità richieste relative all'interfaccia TV:
-1. **Loading in Home**: Implementato `TvLoadingSpinner` in `HomeScreen.kt` che viene mostrato immediatamente dopo la selezione di un profilo (o cambio profilo) mentre il catalogo viene caricato in parallelo.
-2. **Autofocus su Inizia / Riprendi**: Configurato `FocusRequester` collegato al pulsante principale in `DetailsScreen.kt`, con attivazione automatica all'atterraggio sulla scheda dettagli non appena l'elemento viene popolato.
-3. **Info Episodio per Serie TV**: La label del pulsante principale mostra esplicitamente l'episodio da riprendere (`Riprendi S{s}:E{e} (mm:ss)` o `Riprendi S{s}:E{e}` o `Inizia S1:E1`) recuperando l'informazione da `continueWatching` e dalla cronologia `watchedHistory`.
-4. **Rimozione Aggiorna & Auto-refresh 12 ore**: Rimosso il pulsante manuale "Aggiorna" e introdotto in `DetailsViewModel` il controllo sui timestamp salvati in `AppPreferences`: se sono trascorse più di 12 ore dall'ultimo aggiornamento, i metadati vengono aggiornati automaticamente dal backend all'entrata nella scheda.
+Completati e verificati con successo tutti i miglioramenti richiesti per Smart TV:
+1. **Video Player Key Handling & Lifecycle (`ON_PAUSE`)**: Intercettazione tasto BACK in fase tunneling per chiudere i controlli OSD senza de-focalizzare la UI; seek rapido $\pm 10$s con DPAD Sinistra/Destra e badge HUD temporaneo (2s); supporto tasti hardware multimediali (`MEDIA_PLAY_PAUSE`, `PLAY`, `PAUSE`, `STOP`, `HEADSETHOOK`). Aggiunto `LifecycleEventObserver` per interrompere il playback e sincronizzare il progresso di visione quando l'app va in `ON_PAUSE` o `ON_STOP` (es. tasto Home, spegnimento TV, cambio app).
+2. **Screensaver OLED & MediaSession**: Integrato `androidx.media3.session.MediaSession` con ExoPlayer per segnalare la riproduzione al sistema operativo e HDMI-CEC. Gestito `WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON` reattivo su Activity Window per prevenire lo screensaver OLED durante il playback.
+3. **Sezioni Home (Tutti, Film, Serie TV, Anime)**: Aggiunta barra di navigazione con sezioni dedicate in `HomeScreen` e filtro catalogo con in-memory cache in `HomeViewModel`.
+4. **Fluidità UI & Zero Layout Shift**: Rimosso il trigger continuo di `heroItem` al focus delle card (eliminando scatti e riposizionamenti) e stabilizzato lo spessore del bordo in `TvFocusModifier.kt`.
+5. **Thumbnail Episodi Serie TV**: Corretta `formatImageUrl` per dirigere i path relativi TMDB a `image.tmdb.org/t/p/w500` anziché al backend locale, con supporto a `still_path`/`thumbnail_url` e fallback grafico.
 
 ## File Rilevanti
-- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvLoadingSpinner.kt`: Nuovo componente riutilizzabile per spinner animato nativo per TV (Zero dipendenze esterne, Canvas nativo).
-- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeScreen.kt`: Integrazione dello spinner di caricamento per profilo attivo e stato di errore con pulsante di riprova.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeViewModel.kt`: Reset immediato di hero e carousels al cambio profilo per evitare visualizzazione di contenuti non pertinenti durante il caricamento.
-- `app/src/main/kotlin/it/streaminghub/tv/data/local/AppPreferences.kt`: Metodi `getLastMetadataUpdateTime(titleId)` e `setLastMetadataUpdateTime(titleId, timestamp)` via DataStore Preferences.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/details/DetailsViewModel.kt`: Calcolo automatico della scadenza delle 12 ore per forzare `refresh = true`, estrazione robusta dell'episodio di ripresa da `continueWatching` e `watchedHistory`, selezione automatica della stagione corretta.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/details/DetailsScreen.kt`: Autofocus con `FocusRequester` sul pulsante principale, etichettatura arricchita con S{s}:E{e}, rimozione pulsante "Aggiorna", fallback di loading visivo mentre i dati del titolo sono in caricamento.
-- `docs/plans/2026-10-10_fix_tv_home_details_improvements.md`: Piano di lavoro tracciato.
+- `app/src/main/kotlin/it/streaminghub/tv/player/VideoPlayerManager.kt`: Creazione/rilascio `MediaSession` e metodo `pausePlayback()`.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/player/PlayerScreen.kt`: Intercettazione BACK, seek rapido $\pm 10$s, hardware keys, observer lifecycle `ON_PAUSE`/`ON_STOP` e flag `KEEP_SCREEN_ON`.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/player/PlayerViewModel.kt`: Metodo `pausePlayback()` e hook di progresso.
+- `app/src/main/kotlin/it/streaminghub/tv/data/model/Dtos.kt`: Riconoscimento path TMDB in `formatImageUrl` ed estensione campi still/thumbnail su `TvEpisodeDto`.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvEpisodeCard.kt`: Binding `effectivePosterUrl` con fallback gradient.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvFocusModifier.kt`: Spessore bordo fisso per azzerare layout shift.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeScreen.kt`: Tabs sezioni nella top bar con navigazione D-pad.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeViewModel.kt`: Enum `HomeSection`, cache sezioni e disattivazione sovrascrittura continua di `heroItem`.
+- `docs/plans/2026-10-16_improve_player_navigation_sections_and_ui.md`: Piano di lavoro dettagliato completato.
 
 ## Prossimi Passi (Next Steps)
-- Test su dispositivo Android TV / Google TV reale o emulatore con telecomando fisico D-pad per verificare l'esperienza tattile del focus.
-- Eventuale estensione della cronologia per mostrare una sezione dedicata in UI se desiderata.
+- Test su Smart TV / Chromecast con Google TV fisica per validare il comportamento del telecomando e screensaver in ambiente reale.
+- Eventuale commit git delle modifiche tracciate (`git add` e commit convenzionale).
 
 ## Comandi Utili
-- **Compilazione Kotlin**: `./gradlew compileDebugKotlin`
-- **Generazione APK Debug**: `./gradlew assembleDebug`
+- **Compilazione Kotlin**: `./gradlew compileDebugKotlin --no-daemon`
+- **Build APK Debug**: `./gradlew assembleDebug --no-daemon`
 - **Installazione su TV via ADB**: `adb connect <IP_TV>:5555 && adb install -r app/build/outputs/apk/debug/app-debug.apk`
