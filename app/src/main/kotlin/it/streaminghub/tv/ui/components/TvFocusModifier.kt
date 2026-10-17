@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -30,7 +31,8 @@ import it.streaminghub.tv.ui.theme.PrimaryGlow
 fun Modifier.tvFocusable(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(12.dp),
-    focusedScale: Float = 1.08f,
+    focusedScale: Float = 1.04f,
+    unfocusedScale: Float = 1.0f,
     focusedBorderWidth: Dp = 2.5.dp,
     focusedBorderColor: Color = FocusBorderColor,
     unfocusedBorderColor: Color = Color.Transparent,
@@ -39,7 +41,7 @@ fun Modifier.tvFocusable(
 ): Modifier {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) focusedScale else 1.0f,
+        targetValue = if (isFocused) focusedScale else unfocusedScale,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
         label = "tv_focus_scale"
     )
@@ -53,6 +55,7 @@ fun Modifier.tvFocusable(
     val interactionSource = remember { MutableInteractionSource() }
 
     return this
+        .zIndex(if (isFocused) 1f else 0f)
         .scale(scale)
         .shadow(
             elevation = shadowElevation.dp,

@@ -69,7 +69,7 @@ fun TvShelfRow(
 
         // Horizontal TV Row with 48dp overscan padding
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 48.dp),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {

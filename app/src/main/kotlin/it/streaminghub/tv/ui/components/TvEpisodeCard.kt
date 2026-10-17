@@ -119,7 +119,7 @@ fun TvEpisodeCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = episode.title.ifEmpty { "Episodio ${episode.episodeNumber}" },

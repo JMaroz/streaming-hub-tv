@@ -1,34 +1,32 @@
 # Handoff - Streaming Hub TV
 
 ## Stato Corrente
-Risolti il bug di avanzamento a cascata dell'episodio successivo nelle serie TV e implementati gli aggiornamenti al resume:
-1. **Fix Autoplay Cascade Serie TV**:
-   - In `VideoPlayerManager`, aggiunto `resetForNextMedia()` che ferma immediatamente ExoPlayer (`stop()`, `clearMediaItems()`) e azzera `_uiState` (`currentPositionMs = 0`, `durationMs = 0`, `isEnded = false`, `isBuffering = true`).
-   - In `PlayerViewModel`, tracciamento e cancellazione atomica dei job asincroni (`resolveJob`, `metadataJob`, `countdownJob`).
-   - `startPositionObserver` condiziona `showNextPrompt` alla validità del flusso e cancella tempestivamente `countdownJob` non appena il prompt si nasconde.
-   - `reportProgress` racchiuso in `withContext(NonCancellable)` per garantire il salvataggio dei progressi prima dell'uscita.
-2. **Refresh Automatico al Ritorno dalla Riproduzione**:
-   - `DetailsScreen` e `DetailsViewModel`: al lifecycle `ON_RESUME` ricaricano la progressione e l'episodio di ripresa aggiornato (`refreshProgressAndDetails()`).
-   - `HomeScreen` e `HomeViewModel`: al lifecycle `ON_RESUME` aggiornano la riga "Continua a guardare" e i preferiti (`refreshContinueWatchingAndUserData()`).
-3. **Reset allo Stato Iniziale al Resume dalla Home TV**:
-   - In `AndroidManifest.xml`, configurato `launchMode="singleTask"`.
-   - In `MainActivity`, intercettato `onNewIntent` per `Intent.CATEGORY_LEANBACK_LAUNCHER` e introdotto controllo di timeout inattività (15 min) in `onResume`: la navigazione ripristina lo stato iniziale (`NavRoutes.Home` con profilo attivo o `NavRoutes.Profiles`), rilasciando eventuali player in sospeso.
-4. **Build & Validazione**: Compilato con successo sia APK Debug che Release (`./gradlew assembleRelease --no-daemon`).
+Stabilizzato il pattern di focus per le card ed elementi interattivi su Android TV (risolvendo jitter e spostamento percepito della UI):
+1. **Scelta B Implementata**:
+   - `TvFocusModifier.kt`: ridotto `focusedScale` da `1.08f` a un sobrio `1.04f` ed elevato il layer di disegno con `.zIndex(if (isFocused) 1f else 0f)` per evitare clipping o collisioni con le card adiacenti.
+   - Aggiunto parametro `unfocusedScale: Float = 1.0f` per consentire configurazioni arbitrarie senza toccare i singoli componenti.
+2. **Isolamento Spazi e Margini**:
+   - `TvPosterCard.kt`: distanziatore tra poster e titolo aumentato a `8.dp` per assorbire completamente la dilatazione verticale di 4.3dp.
+   - `TvEpisodeCard.kt`: distanziatore aumentato a `8.dp` per non toccare i testi.
+   - `TvShelfRow.kt`: aggiunto `contentPadding = PaddingValues(horizontal = 48.dp, vertical = 6.dp)` al `LazyRow` per pre-allocare l'area di rendering delle card a fuoco.
+3. **Documentazione & Switch Rapido a Scelta A o Zero-Scale**:
+   - Creato `docs/adr/001-tv-card-focus-pattern.md` con l'analisi architetturale dettagliata e la guida rapida per passare alla Scelta A (`unfocusedScale = 0.9f, focusedScale = 1.0f`) o a Zero-Scale in un'unica riga.
+4. **Verifica Empirica**:
+   - Compilazione Kotlin completata con successo (`./gradlew compileDebugKotlin` BUILD SUCCESSFUL in 23s).
 
 ## File Rilevanti
-- `app/src/main/kotlin/it/streaminghub/tv/player/VideoPlayerManager.kt`: Aggiunto `resetForNextMedia()`.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/player/PlayerViewModel.kt`: Gestione job, cancellazione timer e reset pulito.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/details/DetailsViewModel.kt` & `DetailsScreen.kt`: Aggiornamento progressione al resume.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeViewModel.kt` & `HomeScreen.kt`: Aggiornamento "Continua a guardare" al resume.
-- `app/src/main/kotlin/it/streaminghub/tv/MainActivity.kt` & `AndroidManifest.xml`: Reset a root/Home su resume da launcher TV.
-- `docs/plans/2026-10-17_fix_next_episode_autoplay_cascade.md`: Piano di lavoro dettagliato.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvFocusModifier.kt`: Supporto a `unfocusedScale`, `focusedScale = 1.04f` e `zIndex(1f)`.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvPosterCard.kt`: Distanziatore `Spacer(8.dp)` poster-titolo.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvEpisodeCard.kt`: Distanziatore `Spacer(8.dp)` thumbnail-titolo.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvShelfRow.kt`: `contentPadding` verticale per isolamento LazyRow.
+- `docs/adr/001-tv-card-focus-pattern.md`: ADR con analisi comparativa e guida di switch rapido.
+- `docs/plans/2026-10-17_stabilize_tv_card_focus_scale.md`: Piano di lavoro completato e verificato.
 
 ## Prossimi Passi (Next Steps)
-- Test su Smart TV Philips con telecomando fisico per validare la sequenza di transizione dell'episodio successivo e il ritorno dalla Home TV.
-- Commit Git convenzionale (`fix(player): resolve autoplay cascade, refresh on return and reset on TV home resume`).
+- Eseguire test su TV fisica (`./gradlew assembleDebug` o `installDebug`) verificando il feeling di scorrimento D-pad.
+- Se si preferisce azzerare del tutto qualsiasi ridimensionamento, impostare `focusedScale = 1.0f` in `TvFocusModifier.kt` come indicato nell'ADR 001.
 
 ## Comandi Utili
+- **Compilazione Kotlin**: `./gradlew compileDebugKotlin`
 - **Build APK Release**: `./gradlew assembleRelease --no-daemon`
-- **Connessione ADB TV**: `adb connect 192.168.1.49:5555`
-- **Installazione Release**: `adb -s 192.168.1.49:5555 install -r app/build/outputs/apk/release/app-release.apk`
-- **Avvio Applicazione**: `adb -s 192.168.1.49:5555 shell am start -n it.streaminghub.tv/.MainActivity`
+- **Deploy ADB TV**: `adb -s 192.168.1.49:5555 install -r app/build/outputs/apk/release/app-release.apk`

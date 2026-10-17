@@ -1,6 +1,8 @@
 package it.streaminghub.tv.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +53,8 @@ import it.streaminghub.tv.ui.components.TvShelfRow
 import it.streaminghub.tv.ui.components.tvFocusable
 import it.streaminghub.tv.ui.theme.AccentRed
 import it.streaminghub.tv.ui.theme.BgPrimary
+import it.streaminghub.tv.ui.theme.BrandCyan
+import it.streaminghub.tv.ui.theme.BrandGradient
 import it.streaminghub.tv.ui.theme.PrimaryIndigo
 import it.streaminghub.tv.ui.theme.TextMain
 
@@ -330,16 +335,18 @@ private fun TopTvNavigationBar(
             .padding(horizontal = 48.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Official Brand Logo
+        // Official Brand Logo (aligned with streaming-hub-ha specifications)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
+            Image(
                 painter = painterResource(id = R.drawable.ic_brand_logo),
-                contentDescription = null,
-                tint = PrimaryIndigo,
-                modifier = Modifier.size(28.dp)
+                contentDescription = "Streaming Hub",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, BrandCyan.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Streaming",
                     color = TextMain,
@@ -348,9 +355,11 @@ private fun TopTvNavigationBar(
                 )
                 Text(
                     text = "Hub",
-                    color = PrimaryIndigo,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    style = TextStyle(
+                        brush = BrandGradient,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 )
             }
         }

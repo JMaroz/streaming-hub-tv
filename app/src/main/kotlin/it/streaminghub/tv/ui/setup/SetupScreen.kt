@@ -1,6 +1,8 @@
 package it.streaminghub.tv.ui.setup
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +49,8 @@ import it.streaminghub.tv.ui.theme.AccentGreen
 import it.streaminghub.tv.ui.theme.AccentRed
 import it.streaminghub.tv.ui.theme.BgCard
 import it.streaminghub.tv.ui.theme.BgPrimary
+import it.streaminghub.tv.ui.theme.BrandCyan
+import it.streaminghub.tv.ui.theme.BrandGradient
 import it.streaminghub.tv.ui.theme.PrimaryIndigo
 import it.streaminghub.tv.ui.theme.TextDim
 import it.streaminghub.tv.ui.theme.TextMain
@@ -76,19 +80,21 @@ fun SetupScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(600.dp)
         ) {
-            // App Branding Icon & Title
+            // App Branding Icon & Title (aligned with streaming-hub-ha specifications)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(
+                Image(
                     painter = painterResource(id = R.drawable.ic_brand_logo),
-                    contentDescription = null,
-                    tint = PrimaryIndigo,
-                    modifier = Modifier.size(48.dp)
+                    contentDescription = "Streaming Hub",
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, BrandCyan.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Streaming",
                         color = TextMain,
@@ -97,9 +103,11 @@ fun SetupScreen(
                     )
                     Text(
                         text = "Hub",
-                        color = PrimaryIndigo,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        style = TextStyle(
+                            brush = BrandGradient,
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     )
                 }
             }

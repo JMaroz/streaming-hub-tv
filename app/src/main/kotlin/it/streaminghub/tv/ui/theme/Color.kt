@@ -1,6 +1,16 @@
 package it.streaminghub.tv.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+
+// Brand Signature Neon Gradient & Palette (Aligned with streaming-hub-ha)
+val BrandCyan = Color(0xFF06B6D4)
+val BrandCyanLight = Color(0xFF22D3EE)
+val BrandViolet = Color(0xFF8B5CF6)
+val BrandVioletLight = Color(0xFFA855F7)
+val BrandGradient = Brush.linearGradient(
+    colors = listOf(BrandCyan, BrandViolet)
+)
 
 val BgPrimary = Color(0xFF0B0F19)
 val BgSecondary = Color(0xFF121826)
