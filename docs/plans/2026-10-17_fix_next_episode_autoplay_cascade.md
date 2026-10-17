@@ -37,15 +37,15 @@ Task: Fix del bug di skip a cascata dell'episodio successivo, refresh automatico
   - [x] 2.2 Reset immediato in `playNextEpisode()`.
   - [x] 2.3 Cancellazione di `countdownJob` quando `showNextPrompt` diventa falso.
   - [x] 2.4 Condizionare `showNextPrompt` alla validità del video attuale.
-  - [ ] 2.5 Aggiungere `NonCancellable` a `reportProgress()`.
-- [ ] 3. Refresh pagina al ritorno dalla riproduzione:
-  - [ ] 3.1 Aggiungere `refreshProgressAndDetails()` a `DetailsViewModel` e trigger in `DetailsScreen` su `ON_RESUME`.
-  - [ ] 3.2 Aggiungere `refreshContinueWatchingAndUserData()` a `HomeViewModel` e trigger in `HomeScreen` su `ON_RESUME`.
-- [ ] 4. Reset stato iniziale al resume da Home TV:
-  - [ ] 4.1 Configurare `singleTask` in `AndroidManifest.xml`.
-  - [ ] 4.2 In `MainActivity`, gestire `onNewIntent` per `LEANBACK_LAUNCHER` e timeout inattività su `onResume`, pilotando il reset a `NavRoutes.Home`.
-- [ ] 5. Verifica della compilazione con `./gradlew assembleDebug --no-daemon`.
-- [ ] 6. Aggiornare `docs/HANDOFF.md`.
+  - [x] 2.5 Aggiungere `NonCancellable` a `reportProgress()`.
+- [x] 3. Refresh pagina al ritorno dalla riproduzione:
+  - [x] 3.1 Aggiungere `refreshProgressAndDetails()` a `DetailsViewModel` e trigger in `DetailsScreen` su `ON_RESUME`.
+  - [x] 3.2 Aggiungere `refreshContinueWatchingAndUserData()` a `HomeViewModel` e trigger in `HomeScreen` su `ON_RESUME`.
+- [x] 4. Reset stato iniziale al resume da Home TV:
+  - [x] 4.1 Configurare `singleTask` in `AndroidManifest.xml`.
+  - [x] 4.2 In `MainActivity`, gestire `onNewIntent` per `LEANBACK_LAUNCHER` e timeout inattività su `onResume`, pilotando il reset a `NavRoutes.Home`.
+- [x] 5. Verifica della compilazione con `./gradlew assembleDebug --no-daemon` e `assembleRelease`.
+- [x] 6. Aggiornare `docs/HANDOFF.md`.
 
 ## Strategia di Verifica
 - Compilazione Gradle con successo (`./gradlew assembleDebug --no-daemon`).
