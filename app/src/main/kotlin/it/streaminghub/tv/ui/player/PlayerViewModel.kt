@@ -74,6 +74,8 @@ class PlayerViewModel(
     private var heartbeatJob: Job? = null
     private var positionObserverJob: Job? = null
     private var countdownJob: Job? = null
+    private var resolveJob: Job? = null
+    private var metadataJob: Job? = null
 
     init {
         resolveAndPlay()
@@ -88,28 +90,31 @@ class PlayerViewModel(
         val sNum = seasonNumber ?: return
         val eNum = episodeNumber ?: return
 
-        // 1. Fetch Skip Segments (Intro & Outro)
-        viewModelScope.launch {
-            playbackRepository.getSkipSegments(mediaId, sNum, eNum)
-                .onSuccess { segments ->
-                    if (segments.hasSegments) {
-                        _bingeState.value = _bingeState.value.copy(
-                            skipSegments = segments,
-                            currentIntro = segments.intro,
-                            currentOutro = segments.outro
-                        )
+        metadataJob?.cancel()
+        metadataJob = viewModelScope.launch {
+            // 1. Fetch Skip Segments (Intro & Outro)
+            launch {
+                playbackRepository.getSkipSegments(mediaId, sNum, eNum)
+                    .onSuccess { segments ->
+                        if (segments.hasSegments) {
+                            _bingeState.value = _bingeState.value.copy(
+                                skipSegments = segments,
+                                currentIntro = segments.intro,
+                                currentOutro = segments.outro
+                            )
+                        }
                     }
-                }
-        }
+            }
 
-        // 2. Pre-fetch Next Episode for sequential binge-watching
-        viewModelScope.launch {
-            catalogRepository.getNextEpisode(mediaId, sNum, eNum)
-                .onSuccess { nextResp ->
-                    if (nextResp.hasNext && nextResp.next != null) {
-                        _bingeState.value = _bingeState.value.copy(nextEpisode = nextResp.next)
+            // 2. Pre-fetch Next Episode for sequential binge-watching
+            launch {
+                catalogRepository.getNextEpisode(mediaId, sNum, eNum)
+                    .onSuccess { nextResp ->
+                        if (nextResp.hasNext && nextResp.next != null) {
+                            _bingeState.value = _bingeState.value.copy(nextEpisode = nextResp.next)
+                        }
                     }
-                }
+            }
         }
     }
 
@@ -117,9 +122,26 @@ class PlayerViewModel(
         positionObserverJob?.cancel()
         positionObserverJob = viewModelScope.launch {
             playerUiState.collect { uiState ->
+                val isResolving = _resolutionState.value.isResolving
                 val curSec = uiState.currentPositionMs / 1000.0
                 val durSec = uiState.durationMs / 1000.0
                 val bState = _bingeState.value
+
+                // Do not evaluate outro/next episode triggers if stream is still resolving
+                // or if duration is unknown and playback has not legitimately ended.
+                if (isResolving || (uiState.durationMs <= 0L && !uiState.isEnded)) {
+                    if (countdownJob != null) {
+                        countdownJob?.cancel()
+                        countdownJob = null
+                    }
+                    if (bState.isInsideCredits || bState.nextCountdownSeconds != null) {
+                        _bingeState.value = bState.copy(
+                            isInsideCredits = false,
+                            nextCountdownSeconds = null
+                        )
+                    }
+                    return@collect
+                }
 
                 // Intro detection
                 val intro = bState.currentIntro
@@ -143,8 +165,16 @@ class PlayerViewModel(
                     isInsideCredits = showNextPrompt
                 )
 
-                if (showNextPrompt && countdownJob == null && bState.nextCountdownSeconds == null) {
-                    startNextEpisodeCountdown()
+                if (showNextPrompt) {
+                    if (countdownJob == null && bState.nextCountdownSeconds == null) {
+                        startNextEpisodeCountdown()
+                    }
+                } else {
+                    if (countdownJob != null || bState.nextCountdownSeconds != null) {
+                        countdownJob?.cancel()
+                        countdownJob = null
+                        _bingeState.value = _bingeState.value.copy(nextCountdownSeconds = null)
+                    }
                 }
             }
         }
@@ -186,6 +216,9 @@ class PlayerViewModel(
     fun playNextEpisode() {
         countdownJob?.cancel()
         countdownJob = null
+        resolveJob?.cancel()
+        metadataJob?.cancel()
+
         val next = _bingeState.value.nextEpisode ?: return
 
         // 1. Report progress on current episode before switching
@@ -198,21 +231,26 @@ class PlayerViewModel(
 
         if (nextUrl.isEmpty()) return
 
-        // 3. Update state
+        // 3. Reset player immediately so ExoPlayer stops and uiState does not report previous video's end
+        playerManager.resetForNextMedia()
+
+        // 4. Update coordinates
         pageUrl = nextUrl
         seasonNumber = next.seasonNumber
         episodeNumber = next.episodeNumber
         mediaTitle = "${nextEpisodeItem.title.ifEmpty { "Episodio ${next.episodeNumber}" }}"
 
+        // 5. Clean binge state immediately
         _bingeState.value = PlayerBingeState()
 
-        // 4. Resolve and play next episode
+        // 6. Resolve and play next episode, and load its metadata
         resolveAndPlay(startPosMs = 0L)
         loadSkipSegmentsAndNextEpisode()
     }
 
     private fun resolveAndPlay(startPosMs: Long = initialSeekSeconds * 1000L) {
-        viewModelScope.launch {
+        resolveJob?.cancel()
+        resolveJob = viewModelScope.launch {
             _resolutionState.value = StreamResolutionState(isResolving = true)
             val serverUrl = preferences.serverUrl.firstOrNull()
 
@@ -283,22 +321,24 @@ class PlayerViewModel(
 
     fun reportProgress() {
         viewModelScope.launch {
-            val curMs = playerUiState.value.currentPositionMs
-            val durMs = playerUiState.value.durationMs
-            if (durMs > 0) {
-                val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
-                playbackRepository.reportProgress(
-                    ProgressRequestDto(
-                        mediaId = mediaId,
-                        title = mediaTitle,
-                        mediaType = mediaType,
-                        seasonNumber = if (seasonNumber != null && seasonNumber!! > 0) seasonNumber else null,
-                        episodeNumber = if (episodeNumber != null && episodeNumber!! > 0) episodeNumber else null,
-                        progressSeconds = curMs / 1000.0,
-                        durationSeconds = durMs / 1000.0,
-                        profileId = profileId
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                val curMs = playerUiState.value.currentPositionMs
+                val durMs = playerUiState.value.durationMs
+                if (durMs > 0) {
+                    val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
+                    playbackRepository.reportProgress(
+                        ProgressRequestDto(
+                            mediaId = mediaId,
+                            title = mediaTitle,
+                            mediaType = mediaType,
+                            seasonNumber = if (seasonNumber != null && seasonNumber!! > 0) seasonNumber else null,
+                            episodeNumber = if (episodeNumber != null && episodeNumber!! > 0) episodeNumber else null,
+                            progressSeconds = curMs / 1000.0,
+                            durationSeconds = durMs / 1000.0,
+                            profileId = profileId
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -331,6 +371,8 @@ class PlayerViewModel(
         countdownJob?.cancel()
         positionObserverJob?.cancel()
         heartbeatJob?.cancel()
+        resolveJob?.cancel()
+        metadataJob?.cancel()
         playerManager.release()
         super.onCleared()
     }

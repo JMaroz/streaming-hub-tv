@@ -31,7 +31,7 @@
             android:theme="@style/Theme.TvStreamingHub"
             android:banner="@drawable/tv_banner"
             android:icon="@drawable/ic_launcher"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

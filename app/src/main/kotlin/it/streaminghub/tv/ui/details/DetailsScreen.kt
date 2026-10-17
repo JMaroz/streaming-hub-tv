@@ -91,6 +91,25 @@ fun DetailsScreen(
         }
     }
 
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isFirstResume by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (!isFirstResume) {
+                    viewModel.refreshProgressAndDetails()
+                } else {
+                    isFirstResume = false
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     BackHandler(onBack = onBackClick)
 
     Box(

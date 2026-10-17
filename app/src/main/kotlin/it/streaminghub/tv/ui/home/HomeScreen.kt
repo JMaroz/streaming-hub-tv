@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -63,103 +65,110 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    val heroPlayFocusRequester = remember { FocusRequester() }
-    var hasRequestedHeroFocus by remember { mutableStateOf(false) }
+    val topBarFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+    var hasRequestedInitialFocus by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.activeProfileName) {
-        hasRequestedHeroFocus = false
+        hasRequestedInitialFocus = false
     }
 
-    LaunchedEffect(uiState.isLoading) {
-        if (!uiState.isLoading && uiState.heroItem != null && !hasRequestedHeroFocus) {
-            hasRequestedHeroFocus = true
-            kotlinx.coroutines.delay(200)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isFirstResume by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (!isFirstResume) {
+                    viewModel.refreshContinueWatchingAndUserData()
+                } else {
+                    isFirstResume = false
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(uiState.selectedSection) {
+        try {
+            listState.scrollToItem(0, 0)
+        } catch (_: Exception) {}
+    }
+
+    LaunchedEffect(uiState.isLoading, uiState.heroItem) {
+        if (!uiState.isLoading && uiState.heroItem != null && !hasRequestedInitialFocus) {
+            hasRequestedInitialFocus = true
+            kotlinx.coroutines.delay(150)
             try {
-                heroPlayFocusRequester.requestFocus()
+                topBarFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgPrimary)
     ) {
+        // Persistent Top Navigation Bar with Section Tabs
+        TopTvNavigationBar(
+            profileName = uiState.activeProfileName,
+            selectedSection = uiState.selectedSection,
+            activeTabFocusRequester = topBarFocusRequester,
+            onSelectSection = { viewModel.selectSection(it) },
+            onSearchClick = onNavigateToSearch,
+            onProfileClick = onNavigateToProfiles,
+            onSettingsClick = onNavigateToSettings
+        )
+
         if (uiState.isLoading && uiState.heroItem == null) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                TopTvNavigationBar(
-                    profileName = uiState.activeProfileName,
-                    selectedSection = uiState.selectedSection,
-                    onSelectSection = { viewModel.selectSection(it) },
-                    onSearchClick = onNavigateToSearch,
-                    onProfileClick = onNavigateToProfiles,
-                    onSettingsClick = onNavigateToSettings
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                TvLoadingSpinner(
+                    text = "Caricamento catalogo per ${uiState.activeProfileName}…"
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    TvLoadingSpinner(
-                        text = "Caricamento catalogo per ${uiState.activeProfileName}…"
-                    )
-                }
             }
         } else if (uiState.errorMessage != null && uiState.heroItem == null) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                TopTvNavigationBar(
-                    profileName = uiState.activeProfileName,
-                    selectedSection = uiState.selectedSection,
-                    onSelectSection = { viewModel.selectSection(it) },
-                    onSearchClick = onNavigateToSearch,
-                    onProfileClick = onNavigateToProfiles,
-                    onSettingsClick = onNavigateToSettings
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = uiState.errorMessage ?: "Errore durante il caricamento del catalogo",
-                            color = AccentRed,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        TvButton(
-                            text = "Riprova",
-                            onClick = { viewModel.loadHomeData() }
-                        )
-                    }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = uiState.errorMessage ?: "Errore durante il caricamento del catalogo",
+                        color = AccentRed,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TvButton(
+                        text = "Riprova",
+                        onClick = { viewModel.loadHomeData() }
+                    )
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize()
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                // 1. Top Navigation Bar with Section Tabs
-                item {
-                    TopTvNavigationBar(
-                        profileName = uiState.activeProfileName,
-                        selectedSection = uiState.selectedSection,
-                        onSelectSection = { viewModel.selectSection(it) },
-                        onSearchClick = onNavigateToSearch,
-                        onProfileClick = onNavigateToProfiles,
-                        onSettingsClick = onNavigateToSettings
-                    )
-                }
-
-                // 2. Hero Billboard (Stable per section)
-                item {
+                // 1. Hero Billboard (Stable per section, fully visible)
+                item(key = "hero_billboard") {
                     HeroBillboard(
                         item = uiState.heroItem,
                         serverUrl = uiState.serverUrl,
                         isFavorite = uiState.isHeroFavorite,
-                        playButtonFocusRequester = heroPlayFocusRequester,
                         onPlayClick = {
                             uiState.heroItem?.let { onQuickPlay(it) }
                         },
@@ -309,6 +318,7 @@ fun HomeScreen(
 private fun TopTvNavigationBar(
     profileName: String,
     selectedSection: HomeSection,
+    activeTabFocusRequester: FocusRequester? = null,
     onSelectSection: (HomeSection) -> Unit,
     onSearchClick: () -> Unit,
     onProfileClick: () -> Unit,
@@ -317,7 +327,7 @@ private fun TopTvNavigationBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 48.dp, vertical = 20.dp),
+            .padding(horizontal = 48.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Official Brand Logo
@@ -355,6 +365,7 @@ private fun TopTvNavigationBar(
                 NavTabButton(
                     title = section.title,
                     isSelected = section == selectedSection,
+                    focusRequester = if (section == selectedSection) activeTabFocusRequester else null,
                     onClick = { onSelectSection(section) }
                 )
             }
@@ -391,11 +402,13 @@ private fun TopTvNavigationBar(
 private fun NavTabButton(
     title: String,
     isSelected: Boolean,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(20.dp)
     Box(
         modifier = Modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .tvFocusable(shape = shape, onClick = onClick)
             .clip(shape)
             .background(if (isSelected) PrimaryIndigo else Color(0x26FFFFFF))

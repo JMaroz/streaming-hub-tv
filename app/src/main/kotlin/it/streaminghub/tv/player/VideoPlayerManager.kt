@@ -130,6 +130,23 @@ class VideoPlayerManager(
         })
     }
 
+    fun resetForNextMedia() {
+        stopProgressTracker()
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
+        _uiState.value = PlayerUiState(
+            isPlaying = false,
+            isBuffering = true,
+            isEnded = false,
+            currentPositionMs = 0L,
+            durationMs = 0L,
+            bufferedPositionMs = 0L,
+            audioTracks = emptyList(),
+            subtitleTracks = emptyList(),
+            errorMessage = null
+        )
+    }
+
     fun playStream(
         url: String,
         headers: Map<String, String> = emptyMap(),

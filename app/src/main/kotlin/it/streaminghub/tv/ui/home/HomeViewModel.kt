@@ -115,6 +115,38 @@ class HomeViewModel(
         }
     }
 
+    fun refreshContinueWatchingAndUserData() {
+        val profileId = _uiState.value.activeProfileId
+        if (profileId.isEmpty()) return
+        viewModelScope.launch {
+            val continueDeferred = viewModelScope.async { playbackRepository.getContinueWatching(profileId) }
+            val favoritesDeferred = viewModelScope.async { favoritesRepository.getFavorites(profileId) }
+
+            val continueRes = continueDeferred.await()
+            val favRes = favoritesDeferred.await()
+
+            val continueList = mutableListOf<MediaItemDto>()
+            val progressMap = mutableMapOf<String, Float>()
+            continueRes.getOrNull()?.forEach { item ->
+                continueList.add(
+                    MediaItemDto(
+                        id = item.mediaId,
+                        type = item.mediaType,
+                        title = item.title,
+                        posterUrl = item.posterUrl
+                    )
+                )
+                progressMap[item.mediaId] = item.progressPercent
+            }
+
+            allContinueWatching = continueList
+            allProgressMap = progressMap
+            allFavorites = favRes.getOrDefault(emptyList())
+
+            filterPersonalizedShelvesForSection(_uiState.value.selectedSection)
+        }
+    }
+
     fun selectSection(section: HomeSection) {
         if (_uiState.value.selectedSection == section && !_uiState.value.isLoading) return
 

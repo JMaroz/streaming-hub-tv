@@ -1,29 +1,22 @@
 # Handoff - Streaming Hub TV
 
 ## Stato Corrente
-Completati e verificati con successo tutti i miglioramenti richiesti per Smart TV:
-1. **Video Player Key Handling & Lifecycle (`ON_PAUSE`)**: Intercettazione tasto BACK in fase tunneling per chiudere i controlli OSD senza de-focalizzare la UI; seek rapido $\pm 10$s con DPAD Sinistra/Destra e badge HUD temporaneo (2s); supporto tasti hardware multimediali (`MEDIA_PLAY_PAUSE`, `PLAY`, `PAUSE`, `STOP`, `HEADSETHOOK`). Aggiunto `LifecycleEventObserver` per interrompere il playback e sincronizzare il progresso di visione quando l'app va in `ON_PAUSE` o `ON_STOP` (es. tasto Home, spegnimento TV, cambio app).
-2. **Screensaver OLED & MediaSession**: Integrato `androidx.media3.session.MediaSession` con ExoPlayer per segnalare la riproduzione al sistema operativo e HDMI-CEC. Gestito `WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON` reattivo su Activity Window per prevenire lo screensaver OLED durante il playback.
-3. **Sezioni Home (Tutti, Film, Serie TV, Anime)**: Aggiunta barra di navigazione con sezioni dedicate in `HomeScreen` e filtro catalogo con in-memory cache in `HomeViewModel`.
-4. **Fluidità UI & Zero Layout Shift**: Rimosso il trigger continuo di `heroItem` al focus delle card (eliminando scatti e riposizionamenti) e stabilizzato lo spessore del bordo in `TvFocusModifier.kt`.
-5. **Thumbnail Episodi Serie TV**: Corretta `formatImageUrl` per dirigere i path relativi TMDB a `image.tmdb.org/t/p/w500` anziché al backend locale, con supporto a `still_path`/`thumbnail_url` e fallback grafico.
+Risolto il problema del focus iniziale e dello scorrimento indesiderato dell'Hero Banner nella Home su Smart TV:
+1. **Ancoraggio TopTvNavigationBar**: Spostata la barra di navigazione con sezioni e brand fuori da `LazyColumn`, rendendola un header persistente in cima allo schermo con padding ottimizzato (16dp) e sfondo scuro `BgPrimary`. Rimosse le duplicazioni di layout nei rami `isLoading` ed `errorMessage`.
+2. **Azzeramento Auto-Scroll & Focus Iniziale su Sezione Attiva**: Rimosso il `LaunchedEffect` che forzava programmaticamente `requestFocus()` su "Guarda Ora" scatenando `bringIntoView` e tagliando la parte alta dell'Hero Banner. Il focus iniziale si posiziona ora in modo pulito sul tab della sezione selezionata ("Tutti") nella barra superiore (`topBarFocusRequester`), mantenendo la schermata a scroll 0.
+3. **Visibilità Completa Hero Banner & D-Pad Flow**: Con `HeroBillboard` come primo item della `LazyColumn` a coordinate stabili (offset 0), sia la Top Bar che l'intero Hero Banner (volto, sfondo, titolo, trama e i tre pulsanti) sono visibili per intero al 100% all'avvio. La navigazione con DPAD verso il basso porta fluidamente a "Guarda Ora" e solo successivamente scorre sulle righe di catalogo sottostanti.
+4. **Build & Deploy Release**: Compilato con successo l'APK release (`./gradlew assembleRelease --no-daemon`) con R8 e installato via ADB sulla Smart TV Philips (`192.168.1.49:5555`).
 
 ## File Rilevanti
-- `app/src/main/kotlin/it/streaminghub/tv/player/VideoPlayerManager.kt`: Creazione/rilascio `MediaSession` e metodo `pausePlayback()`.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/player/PlayerScreen.kt`: Intercettazione BACK, seek rapido $\pm 10$s, hardware keys, observer lifecycle `ON_PAUSE`/`ON_STOP` e flag `KEEP_SCREEN_ON`.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/player/PlayerViewModel.kt`: Metodo `pausePlayback()` e hook di progresso.
-- `app/src/main/kotlin/it/streaminghub/tv/data/model/Dtos.kt`: Riconoscimento path TMDB in `formatImageUrl` ed estensione campi still/thumbnail su `TvEpisodeDto`.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvEpisodeCard.kt`: Binding `effectivePosterUrl` con fallback gradient.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/components/TvFocusModifier.kt`: Spessore bordo fisso per azzerare layout shift.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeScreen.kt`: Tabs sezioni nella top bar con navigazione D-pad.
-- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeViewModel.kt`: Enum `HomeSection`, cache sezioni e disattivazione sovrascrittura continua di `heroItem`.
-- `docs/plans/2026-10-16_improve_player_navigation_sections_and_ui.md`: Piano di lavoro dettagliato completato.
+- `app/src/main/kotlin/it/streaminghub/tv/ui/home/HomeScreen.kt`: Layout a colonna con `TopTvNavigationBar` fissa, gestione `topBarFocusRequester` e `listState.scrollToItem(0, 0)`.
+- `docs/plans/2026-10-16_fix_home_hero_banner_focus_and_scroll.md`: Piano di lavoro dettagliato del fix completato.
 
 ## Prossimi Passi (Next Steps)
-- Test su Smart TV / Chromecast con Google TV fisica per validare il comportamento del telecomando e screensaver in ambiente reale.
-- Eventuale commit git delle modifiche tracciate (`git add` e commit convenzionale).
+- Validazione da telecomando fisico Philips all'avvio dell'app per verificare la navigazione DPAD tra i tab in alto e i pulsanti dell'Hero Banner.
+- Esecuzione del commit Git convenzionale (`fix(home): anchor navigation bar and prevent hero banner auto scroll on initial focus`).
 
 ## Comandi Utili
-- **Compilazione Kotlin**: `./gradlew compileDebugKotlin --no-daemon`
-- **Build APK Debug**: `./gradlew assembleDebug --no-daemon`
-- **Installazione su TV via ADB**: `adb connect <IP_TV>:5555 && adb install -r app/build/outputs/apk/debug/app-debug.apk`
+- **Build APK Release**: `./gradlew assembleRelease --no-daemon`
+- **Connessione ADB TV Philips**: `adb connect 192.168.1.49:5555`
+- **Reinstallazione Release**: `adb -s 192.168.1.49:5555 install -r app/build/outputs/apk/release/app-release.apk`
+- **Avvio Applicazione**: `adb -s 192.168.1.49:5555 shell am start -n it.streaminghub.tv/.MainActivity`

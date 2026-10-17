@@ -48,9 +48,17 @@ class DetailsViewModel(
         loadTitleDetails()
     }
 
+    fun refreshProgressAndDetails() {
+        loadTitleDetails(manualForceRefresh = false)
+    }
+
     fun loadTitleDetails(manualForceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, playbackFeedbackMessage = null)
+            _uiState.value = _uiState.value.copy(
+                isLoading = (_uiState.value.item == null),
+                errorMessage = null,
+                playbackFeedbackMessage = null
+            )
             val profileId = preferences.activeProfileId.firstOrNull() ?: "default"
             val serverUrl = preferences.serverUrl.firstOrNull()
 
