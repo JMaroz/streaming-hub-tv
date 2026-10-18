@@ -11,6 +11,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.session.MediaSession
@@ -74,11 +75,16 @@ class VideoPlayerManager(
 
     private val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
-            15_000, // minBufferMs
-            50_000, // maxBufferMs
-            2_500,  // bufferForPlaybackMs
-            5_000   // bufferForPlaybackAfterRebufferMs
+            30_000, // minBufferMs: maintains at least 30s forward buffer
+            90_000, // maxBufferMs: allows up to 90s forward buffer for seamless fast-forward
+            1_500,  // bufferForPlaybackMs: rapid initial playback start
+            2_000   // bufferForPlaybackAfterRebufferMs: quick recovery after rebuffer
         )
+        .setBackBuffer(
+            40_000, // backBufferDurationMs: retains 40s in memory behind playback head for instant rewind
+            true    // retainBackBufferFromKeyframe: ensures clean keyframe rewind without network requests
+        )
+        .setPrioritizeTimeOverSizeThresholds(true)
         .build()
 
     val exoPlayer: ExoPlayer = ExoPlayer.Builder(context)
@@ -89,6 +95,9 @@ class VideoPlayerManager(
         .setTrackSelector(trackSelector)
         .setLoadControl(loadControl)
         .build()
+        .apply {
+            setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        }
 
     val mediaSession: MediaSession = MediaSession.Builder(context, exoPlayer).build()
 
