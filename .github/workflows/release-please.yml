@@ -104,12 +104,11 @@ jobs:
             exit 1
           fi
 
-          # Asset con nome standard e versionato
+          # Asset con nome standard
           cp "$APK_OUTPUT" streaming-hub-tv.apk
-          cp "$APK_OUTPUT" "streaming-hub-tv-${TARGET_TAG}.apk"
 
           # Generazione checksums SHA-256
-          sha256sum streaming-hub-tv.apk "streaming-hub-tv-${TARGET_TAG}.apk" > checksums.txt
+          sha256sum streaming-hub-tv.apk > checksums.txt
           cat checksums.txt
 
       - name: Upload APK Assets to GitHub Release
@@ -118,6 +117,5 @@ jobs:
         run: |
           gh release upload "$TARGET_TAG" \
             streaming-hub-tv.apk \
-            "streaming-hub-tv-${TARGET_TAG}.apk" \
             checksums.txt \
             --clobber
