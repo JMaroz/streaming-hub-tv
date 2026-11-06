@@ -12,7 +12,7 @@ android {
 
     val envVersionName = System.getenv("APP_VERSION_NAME")
         ?: (project.findProperty("versionName") as? String)
-        ?: "1.0.0" // x-release-please-version
+        ?: "1.1.0" // x-release-please-version
 
     val envVersionCode = System.getenv("APP_VERSION_CODE")?.toIntOrNull()
         ?: (project.findProperty("versionCode") as? String)?.toIntOrNull()
