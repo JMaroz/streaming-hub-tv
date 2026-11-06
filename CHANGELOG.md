@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/JMaroz/streaming-hub-tv/compare/v1.1.0...v1.1.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **ci:** sanitize signing credentials and support manual release dispatch for apk upload ([3589ddf](https://github.com/JMaroz/streaming-hub-tv/commit/3589ddf0b22afdf054a4e547b5bfbf7e0fd8d353))
+
 ## [1.1.0](https://github.com/JMaroz/streaming-hub-tv/compare/v1.0.0...v1.1.0) (2026-11-06)
 
 
