@@ -1,31 +1,26 @@
 # Handoff - Streaming Hub TV
 
 ## Stato Corrente
-- Completata l'implementazione dell'auto-aggiornamento da GitHub Releases e allineato il ciclo di rilascio con **Release Please**, esattamente come su `streaming-hub-ha`:
-1. **Automazione Versioning & Release Please**:
-   - Creati `release-please-config.json` e `.release-please-manifest.json` (inizializzato a `1.0.0`).
-   - `app/build.gradle.kts`: `versionName` e `versionCode` vengono ora iniettati dinamicamente da variabili d'ambiente (`APP_VERSION_NAME`, `APP_VERSION_CODE`), con annotazione `// x-release-please-version`.
-   - `buildTypes.debug`: rimossa la forzatura del keystore release per consentire build debug locali veloci senza necessità di password.
-2. **Workflow GitHub Actions** (`.github/workflows/release-please.yml`):
-   - Ad ogni merge su `main`, Release Please apre/aggiorna la Release PR (Conventional Commits: `feat:`, `fix:`).
-   - Quando la Release PR viene mergiata, Release Please crea il tag e la GitHub Release.
-   - Il job `build-and-upload-apk` calcola automaticamente il `versionCode` progressivo (`git rev-list --count HEAD`), firma l'APK decodificando `secrets.RELEASE_KEYSTORE_BASE64` e carica `streaming-hub-tv.apk`, `streaming-hub-tv-vX.Y.Z.apk` e `checksums.txt` nella release GitHub.
-3. **Validazione Build**:
-   - Eseguito `./gradlew assembleDebug --no-daemon` con successo.
+- Completata con successo l'implementazione del sistema di aggiornamento in-app da GitHub Releases e la pipeline CI/CD con Release Please:
+  1. **Release `v1.1.0` integrata con APK**: risolto il problema della mancata presenza degli APK causato da uno spazio di fine riga nel secret `RELEASE_KEY_ALIAS`. L'azione è stata eseguita e ha compilato, firmato e caricato `streaming-hub-tv.apk`, `streaming-hub-tv-v1.1.0.apk` e `checksums.txt` negli asset della release GitHub.
+  2. **Sanitizzazione Credenziali**: aggiunta sanitizzazione con `.trim()` in `app/build.gradle.kts` e pulizia via `sed` nel workflow GitHub Actions per evitare problemi legati a whitespace accidentali nei secrets.
+  3. **Supporto `workflow_dispatch`**: `.github/workflows/release-please.yml` ora supporta anche l'esecuzione manuale con parametro `release_tag` per compilare e allegare retroattivamente APK a qualsiasi release esistente.
+  4. **In-App Auto-Update Engine**: completata l'integrazione nativa (`AppUpdateManager`, `PackageInstaller`, `UpdateReceiver`, dialog D-pad friendly e controllo da Impostazioni).
 
 ## File Rilevanti
-- `.github/workflows/release-please.yml`: Pipeline completa Release Please + Build & Upload APK assets.
-- `release-please-config.json`: Configurazione strategia `simple` e sezioni changelog.
-- `.release-please-manifest.json`: Tracciamento semver corrente (`1.0.0`).
-- `app/build.gradle.kts`: Injection dinamica di `versionName` e `versionCode`, signing release configurabile.
-- `app/src/main/kotlin/it/streaminghub/tv/data/update/AppUpdateManager.kt`: Engine in-app di aggiornamento automatico.
-- `docs/plans/2026-11-06_github_releases_auto_update.md`: Piano operativo completato.
+- `.github/workflows/release-please.yml`: Pipeline Release Please + build/sign APK + supporto `workflow_dispatch`.
+- `app/build.gradle.kts`: Sanitizzazione `trim()` per credenziali keystore e iniezione dinamica di `versionCode`/`versionName`.
+- `app/src/main/kotlin/it/streaminghub/tv/data/update/AppUpdateManager.kt`: Engine nativo per controllo release, download streaming, calcolo SHA-256 e verifica certificato APK.
+- `app/src/main/kotlin/it/streaminghub/tv/receiver/UpdateReceiver.kt`: Gestione prompt di sistema e cleanup residui post-installazione (`MY_PACKAGE_REPLACED`).
+- `app/src/main/kotlin/it/streaminghub/tv/ui/components/UpdateDialog.kt`: Dialog di aggiornamento D-pad friendly.
+- `docs/plans/2026-11-06_github_releases_auto_update.md`: Piano di lavoro operativo completato.
 
 ## Prossimi Passi (Next Steps)
-- Se desideri eseguire build release anche in locale, aggiorna `RELEASE_STORE_PASSWORD` e `RELEASE_KEY_PASSWORD` nel tuo `local.properties` privato con la nuova password scelta.
-- Effettuare commit e push su `main`: Release Please creerà automaticamente la prima Release PR appena riceverà un commit conventional (es. `feat: implement in-app auto updates via github releases`).
+- Testare l'app installata su una TV/emulatore Android TV con versione precedente o verificare il pulsante "Verifica Aggiornamenti" nella schermata Setup/Impostazioni.
+- Per le future versioni: i commit su `main` con prefissi Conventional Commits (`feat:`, `fix:`) aggiorneranno automaticamente la Release PR creata da Release Please. Al merge della PR, la compilazione e l'upload degli APK avverranno in automatico.
 
 ## Comandi Utili
 - **Build APK Debug Locale**: `./gradlew assembleDebug`
 - **Build APK Release Locale**: `./gradlew assembleRelease` (richiede credenziali in `local.properties`)
-- **Verifica Stato Git**: `git status`
+- **Trigger Manuale Release Actions**: `gh workflow run "Release Please" -f release_tag=vX.Y.Z`
+- **Verifica Release GitHub**: `gh release view v1.1.0`
