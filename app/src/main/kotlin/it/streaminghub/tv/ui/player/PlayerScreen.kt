@@ -97,6 +97,18 @@ fun PlayerScreen(
     val rootPlayerFocusRequester = remember { FocusRequester() }
     val playPauseFocusRequester = remember { FocusRequester() }
 
+    var hasExited by remember { mutableStateOf(false) }
+    val safeExit = remember(viewModel, onExit) {
+        {
+            if (!hasExited) {
+                hasExited = true
+                viewModel.pausePlayback()
+                viewModel.reportProgress()
+                onExit()
+            }
+        }
+    }
+
     // Intercept Back button:
     // If controls are shown, hide them first. If controls are already hidden, exit the player.
     BackHandler {
@@ -109,8 +121,7 @@ fun PlayerScreen(
                 } catch (_: Exception) {}
             }
             else -> {
-                viewModel.reportProgress()
-                onExit()
+                safeExit()
             }
         }
     }
@@ -149,7 +160,7 @@ fun PlayerScreen(
                     viewModel.reportProgress()
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    viewModel.pausePlayback()
+                    safeExit()
                 }
                 else -> {}
             }
@@ -221,9 +232,7 @@ fun PlayerScreen(
                             return@onPreviewKeyEvent true
                         }
                         KeyEvent.KEYCODE_MEDIA_STOP -> {
-                            viewModel.pausePlayback()
-                            viewModel.reportProgress()
-                            onExit()
+                            safeExit()
                             return@onPreviewKeyEvent true
                         }
                         KeyEvent.KEYCODE_MEDIA_REWIND -> {
@@ -330,7 +339,7 @@ fun PlayerScreen(
                     )
                     TvButton(
                         text = "Torna ai Dettagli",
-                        onClick = onExit
+                        onClick = safeExit
                     )
                 }
             }

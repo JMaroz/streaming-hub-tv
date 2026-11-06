@@ -1,8 +1,6 @@
 package it.streaminghub.tv.ui.components
 
-import android.view.KeyEvent
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,22 +14,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import it.streaminghub.tv.ui.theme.FocusBorderColor
-import it.streaminghub.tv.ui.theme.PrimaryGlow
 
+/**
+ * Lightweight, GPU-friendly TV focus modifier.
+ * Optimized for low-power TV chipsets:
+ * - Default 1.0f scale (eliminates adjacent card shifts and spring oscillation)
+ * - Zero dynamic shadows (eliminates expensive GPU blur/render passes)
+ * - Crisp, high-contrast border for instant visibility
+ * - Clean input dispatch without conflicting event consumers
+ */
 @Composable
 fun Modifier.tvFocusable(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(12.dp),
-    focusedScale: Float = 1.04f,
+    focusedScale: Float = 1.0f,
     unfocusedScale: Float = 1.0f,
     focusedBorderWidth: Dp = 2.5.dp,
     focusedBorderColor: Color = FocusBorderColor,
@@ -40,29 +43,23 @@ fun Modifier.tvFocusable(
     onClick: (() -> Unit)? = null
 ): Modifier {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) focusedScale else unfocusedScale,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
-        label = "tv_focus_scale"
-    )
-
-    val shadowElevation by animateFloatAsState(
-        targetValue = if (isFocused) 16f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "tv_focus_shadow"
-    )
-
     val interactionSource = remember { MutableInteractionSource() }
+
+    val hasScale = focusedScale != 1.0f || unfocusedScale != 1.0f
+    val scaleModifier = if (hasScale) {
+        val scale by animateFloatAsState(
+            targetValue = if (isFocused) focusedScale else unfocusedScale,
+            animationSpec = tween(durationMillis = 100),
+            label = "tv_focus_scale"
+        )
+        Modifier.scale(scale)
+    } else {
+        Modifier
+    }
 
     return this
         .zIndex(if (isFocused) 1f else 0f)
-        .scale(scale)
-        .shadow(
-            elevation = shadowElevation.dp,
-            shape = shape,
-            ambientColor = PrimaryGlow,
-            spotColor = PrimaryGlow
-        )
+        .then(scaleModifier)
         .border(
             width = focusedBorderWidth,
             color = if (isFocused) focusedBorderColor else unfocusedBorderColor,
@@ -74,26 +71,12 @@ fun Modifier.tvFocusable(
         }
         .then(
             if (onClick != null) {
-                Modifier
-                    .onKeyEvent { keyEvent ->
-                        if (enabled &&
-                            keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_UP &&
-                            (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
-                             keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_ENTER ||
-                             keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
-                        ) {
-                            onClick()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    .clickable(
-                        enabled = enabled,
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
-                    )
+                Modifier.clickable(
+                    enabled = enabled,
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                )
             } else {
                 Modifier.focusable(enabled = enabled, interactionSource = interactionSource)
             }

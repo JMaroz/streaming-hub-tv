@@ -1,5 +1,6 @@
 package it.streaminghub.tv
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,11 +23,29 @@ import kotlinx.coroutines.flow.firstOrNull
 
 class MainActivity : ComponentActivity() {
 
-    private var backgroundTimestamp = 0L
+    companion object {
+        private const val PREFS_SESSION = "app_session"
+        private const val KEY_LAST_BACKGROUND_TIME = "last_background_timestamp"
+        private const val SESSION_TIMEOUT_MS = 5 * 60 * 1000L // 5 minuti
+    }
+
+    private val sessionPrefs by lazy {
+        getSharedPreferences(PREFS_SESSION, Context.MODE_PRIVATE)
+    }
+
     private val resetToInitialStateTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        val lastBgPrefs = sessionPrefs.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
+        val lastBgBundle = savedInstanceState?.getLong(KEY_LAST_BACKGROUND_TIME, 0L) ?: 0L
+        val lastBg = maxOf(lastBgPrefs, lastBgBundle)
+        val isSessionExpired = lastBg > 0L && (System.currentTimeMillis() - lastBg >= SESSION_TIMEOUT_MS)
+
+        // Se la sessione è scaduta (> 5 min) dopo che l'app è stata chiusa o uccisa dal sistema (Process Death),
+        // passiamo null a super.onCreate per impedire a rememberNavController di ripristinare il vecchio backstack
+        // (scheda dettaglio o player) e forzare una partenza pulita dalla Home/Profili.
+        val stateToRestore = if (isSessionExpired) null else savedInstanceState
+        super.onCreate(stateToRestore)
 
         val app = application as StreamingHubApp
 
@@ -95,20 +114,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        backgroundTimestamp = System.currentTimeMillis()
+    override fun onPause() {
+        super.onPause()
+        // Registra il timestamp persistente appena l'app perde il primo piano (sopravvive a Process Death)
+        sessionPrefs.edit().putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis()).apply()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong(KEY_LAST_BACKGROUND_TIME, System.currentTimeMillis())
     }
 
     override fun onResume() {
         super.onResume()
-        if (backgroundTimestamp > 0L) {
-            val elapsed = System.currentTimeMillis() - backgroundTimestamp
-            val fifteenMinutes = 15L * 60L * 1000L
-            if (elapsed >= fifteenMinutes) {
+        val lastBg = sessionPrefs.getLong(KEY_LAST_BACKGROUND_TIME, 0L)
+        if (lastBg > 0L) {
+            val elapsed = System.currentTimeMillis() - lastBg
+            if (elapsed >= SESSION_TIMEOUT_MS) {
                 resetToInitialStateTrigger.tryEmit(Unit)
             }
-            backgroundTimestamp = 0L
+            // Reset del timestamp per la sessione attiva
+            sessionPrefs.edit().putLong(KEY_LAST_BACKGROUND_TIME, 0L).apply()
         }
     }
 }
