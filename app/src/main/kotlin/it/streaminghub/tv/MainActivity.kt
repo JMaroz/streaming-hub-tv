@@ -14,6 +14,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
+import it.streaminghub.tv.data.update.AppUpdateManager
+import it.streaminghub.tv.data.update.UpdateStatus
+import it.streaminghub.tv.ui.components.UpdateDialog
 import it.streaminghub.tv.ui.navigation.AppNavigation
 import it.streaminghub.tv.ui.navigation.NavRoutes
 import it.streaminghub.tv.ui.theme.BgPrimary
@@ -96,6 +99,29 @@ class MainActivity : ComponentActivity() {
                             navController = navController,
                             startDestination = startRoute
                         )
+                    }
+
+                    // Global in-app update prompt / progress overlay
+                    val updateManager = remember { AppUpdateManager.getInstance(applicationContext) }
+                    val updateStatus by updateManager.status.collectAsState()
+
+                    when (val status = updateStatus) {
+                        is UpdateStatus.UpdateAvailable,
+                        is UpdateStatus.Downloading,
+                        is UpdateStatus.ReadyToInstall,
+                        is UpdateStatus.Installing,
+                        is UpdateStatus.Error -> {
+                            UpdateDialog(
+                                status = status,
+                                onDownloadAndInstall = { available ->
+                                    updateManager.startDownloadAndInstall(available)
+                                },
+                                onDismiss = {
+                                    updateManager.dismiss()
+                                }
+                            )
+                        }
+                        else -> {}
                     }
                 }
             }

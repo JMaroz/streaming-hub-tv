@@ -13,6 +13,7 @@ import it.streaminghub.tv.data.repository.CatalogRepository
 import it.streaminghub.tv.data.repository.FavoritesRepository
 import it.streaminghub.tv.data.repository.PlaybackRepository
 import it.streaminghub.tv.data.repository.ProfileRepository
+import it.streaminghub.tv.data.update.AppUpdateManager
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -56,6 +57,10 @@ class StreamingHubApp : Application(), ImageLoaderFactory {
         playbackRepository = PlaybackRepository(preferences)
         profileRepository = ProfileRepository(preferences)
         favoritesRepository = FavoritesRepository(preferences)
+
+        // Schedula e verifica aggiornamenti da GitHub Releases
+        AppUpdateManager.schedulePeriodicCheck(this)
+        AppUpdateManager.getInstance(this).checkForUpdates(silent = true)
 
         // Initialize Coil singleton explicitly
         Coil.setImageLoader(this)

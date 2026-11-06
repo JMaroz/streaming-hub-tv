@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import it.streaminghub.tv.StreamingHubApp
+import it.streaminghub.tv.data.update.AppUpdateManager
 import it.streaminghub.tv.ui.details.DetailsScreen
 import it.streaminghub.tv.ui.details.DetailsViewModel
 import it.streaminghub.tv.ui.home.HomeScreen
@@ -48,7 +49,10 @@ fun AppNavigation(
                 factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return SetupViewModel(app.preferences) as T
+                        return SetupViewModel(
+                            preferences = app.preferences,
+                            updateManager = AppUpdateManager.getInstance(app)
+                        ) as T
                     }
                 }
             )

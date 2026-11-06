@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SettingsEthernet
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,8 +44,10 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import it.streaminghub.tv.BuildConfig
 import it.streaminghub.tv.R
 import it.streaminghub.tv.data.api.DiscoveryState
+import it.streaminghub.tv.data.update.UpdateStatus
 import it.streaminghub.tv.ui.components.TvButton
 import it.streaminghub.tv.ui.components.tvFocusable
 import it.streaminghub.tv.ui.theme.AccentGreen
@@ -66,6 +71,7 @@ fun SetupScreen(
     val manualUrl by viewModel.manualUrl.collectAsState()
     val isTesting by viewModel.isManualTesting.collectAsState()
     val manualError by viewModel.manualError.collectAsState()
+    val updateStatus by (viewModel.updateStatus?.collectAsState() ?: remember { mutableStateOf(UpdateStatus.Idle) })
 
     var showManualInput by remember { mutableStateOf(false) }
 
@@ -73,12 +79,15 @@ fun SetupScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BgPrimary)
-            .padding(48.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 48.dp, vertical = 24.dp),
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(600.dp)
+            modifier = Modifier
+                .width(620.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 16.dp)
         ) {
             // App Branding Icon & Title (aligned with streaming-hub-ha specifications)
             Row(
@@ -303,6 +312,63 @@ fun SetupScreen(
                     text = "Inserisci IP manualmente",
                     isPrimary = false,
                     onClick = { showManualInput = true }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Section 3: App Information & GitHub Updates
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(BgCard)
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Informazioni e Aggiornamenti",
+                            color = TextMain,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "StreamingHub TV v${BuildConfig.VERSION_NAME}",
+                            color = BrandCyan,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    TvButton(
+                        text = if (updateStatus is UpdateStatus.Checking) "Verifica in corso..." else "Verifica Aggiornamenti",
+                        icon = Icons.Default.SystemUpdate,
+                        isPrimary = updateStatus is UpdateStatus.UpdateAvailable,
+                        onClick = { viewModel.checkForUpdates() }
+                    )
+                }
+
+                val statusMessage = when (updateStatus) {
+                    is UpdateStatus.Checking -> "Controllo nuove release su GitHub in corso..."
+                    is UpdateStatus.UpToDate -> "L'applicazione è aggiornata all'ultima versione disponibile."
+                    is UpdateStatus.UpdateAvailable -> "Nuova versione v${(updateStatus as UpdateStatus.UpdateAvailable).version} disponibile! Clicca per visualizzare i dettagli."
+                    is UpdateStatus.Downloading -> "Download in corso... ${((updateStatus as UpdateStatus.Downloading).progress * 100).toInt()}%"
+                    is UpdateStatus.Installing, is UpdateStatus.ReadyToInstall -> "Preparazione installazione in corso..."
+                    is UpdateStatus.Error -> "Errore verifica: ${(updateStatus as UpdateStatus.Error).message}"
+                    UpdateStatus.Idle -> "Aggiornamenti automatici attivi tramite GitHub Releases."
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = statusMessage,
+                    color = if (updateStatus is UpdateStatus.Error) AccentRed else TextMuted,
+                    fontSize = 12.sp
                 )
             }
         }

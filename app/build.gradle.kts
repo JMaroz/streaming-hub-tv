@@ -10,12 +10,20 @@ android {
     namespace = "it.streaminghub.tv"
     compileSdk = 37
 
+    val envVersionName = System.getenv("APP_VERSION_NAME")
+        ?: (project.findProperty("versionName") as? String)
+        ?: "1.0.0" // x-release-please-version
+
+    val envVersionCode = System.getenv("APP_VERSION_CODE")?.toIntOrNull()
+        ?: (project.findProperty("versionCode") as? String)?.toIntOrNull()
+        ?: 1
+
     defaultConfig {
         applicationId = "it.streaminghub.tv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = envVersionCode
+        versionName = envVersionName
 
         vectorDrawables {
             useSupportLibrary = true
@@ -29,10 +37,15 @@ android {
             if (props.exists()) {
                 localProperties.load(props.inputStream())
             }
-            storeFile = file(localProperties.getProperty("RELEASE_STORE_FILE", "release-keystore.jks"))
-            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD", "")
-            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
-            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
+            val storeFilePath = System.getenv("RELEASE_STORE_FILE")
+                ?: localProperties.getProperty("RELEASE_STORE_FILE", "release-keystore.jks")
+            storeFile = file(storeFilePath)
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                ?: localProperties.getProperty("RELEASE_STORE_PASSWORD", "")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                ?: localProperties.getProperty("RELEASE_KEY_ALIAS", "")
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                ?: localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
         }
     }
 
@@ -48,7 +61,6 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 

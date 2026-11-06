@@ -1,0 +1,113 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build-and-upload-apk:
+    name: Build & Upload Release APK
+    needs: release-please
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Restore Release Keystore from Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Ripristino keystore dai secrets di repository..."
+            echo "$KEYSTORE_BASE64" | base64 --decode > app/release-keystore.jks
+          else
+            echo "::error::Secret RELEASE_KEYSTORE_BASE64 non trovato!"
+            exit 1
+          fi
+
+      - name: Calculate Version Info
+        run: |
+          # Calcolo progressivo del versionCode basato sui commit totali (standard industry practice)
+          VERSION_CODE=$(git rev-list --count HEAD)
+          VERSION_NAME="${{ needs.release-please.outputs.version }}"
+          echo "APP_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "::notice::Compilazione release con versionName=$VERSION_NAME e versionCode=$VERSION_CODE"
+
+      - name: Build Release APK with Gradle
+        env:
+          APP_VERSION_NAME: ${{ env.APP_VERSION_NAME }}
+          APP_VERSION_CODE: ${{ env.APP_VERSION_CODE }}
+          RELEASE_STORE_FILE: release-keystore.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare Release Artifacts and Checksums
+        run: |
+          RELEASE_TAG="${{ needs.release-please.outputs.tag_name }}"
+          APK_OUTPUT="app/build/outputs/apk/release/app-release.apk"
+
+          if [ ! -f "$APK_OUTPUT" ]; then
+            echo "::error::File APK $APK_OUTPUT non trovato!"
+            exit 1
+          fi
+
+          # Asset con nome standard e versionato
+          cp "$APK_OUTPUT" streaming-hub-tv.apk
+          cp "$APK_OUTPUT" "streaming-hub-tv-${RELEASE_TAG}.apk"
+
+          # Generazione checksums SHA-256
+          sha256sum streaming-hub-tv.apk "streaming-hub-tv-${RELEASE_TAG}.apk" > checksums.txt
+          cat checksums.txt
+
+      - name: Upload APK Assets to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            streaming-hub-tv.apk \
+            "streaming-hub-tv-${{ needs.release-please.outputs.tag_name }}.apk" \
+            checksums.txt \
+            --clobber

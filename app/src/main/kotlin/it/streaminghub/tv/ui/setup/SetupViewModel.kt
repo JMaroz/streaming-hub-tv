@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import it.streaminghub.tv.data.api.DiscoveryState
 import it.streaminghub.tv.data.api.ServerDiscoveryManager
 import it.streaminghub.tv.data.local.AppPreferences
+import it.streaminghub.tv.data.update.AppUpdateManager
+import it.streaminghub.tv.data.update.UpdateStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +15,15 @@ import kotlinx.coroutines.launch
 
 class SetupViewModel(
     private val preferences: AppPreferences,
-    private val discoveryManager: ServerDiscoveryManager = ServerDiscoveryManager()
+    private val discoveryManager: ServerDiscoveryManager = ServerDiscoveryManager(),
+    private val updateManager: AppUpdateManager? = null
 ) : ViewModel() {
+
+    val updateStatus: StateFlow<UpdateStatus>? = updateManager?.status
+
+    fun checkForUpdates() {
+        updateManager?.checkForUpdates(silent = false)
+    }
 
     private val _discoveryState = MutableStateFlow<DiscoveryState>(DiscoveryState.Idle)
     val discoveryState: StateFlow<DiscoveryState> = _discoveryState.asStateFlow()
