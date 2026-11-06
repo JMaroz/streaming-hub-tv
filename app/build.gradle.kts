@@ -37,15 +37,15 @@ android {
             if (props.exists()) {
                 localProperties.load(props.inputStream())
             }
-            val storeFilePath = System.getenv("RELEASE_STORE_FILE")
-                ?: localProperties.getProperty("RELEASE_STORE_FILE", "release-keystore.jks")
+            val storeFilePath = (System.getenv("RELEASE_STORE_FILE")
+                ?: localProperties.getProperty("RELEASE_STORE_FILE", "release-keystore.jks")).trim()
             storeFile = file(storeFilePath)
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                ?: localProperties.getProperty("RELEASE_STORE_PASSWORD", "")
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                ?: localProperties.getProperty("RELEASE_KEY_ALIAS", "")
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-                ?: localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
+            storePassword = (System.getenv("RELEASE_STORE_PASSWORD")
+                ?: localProperties.getProperty("RELEASE_STORE_PASSWORD", "")).trim()
+            keyAlias = (System.getenv("RELEASE_KEY_ALIAS")
+                ?: localProperties.getProperty("RELEASE_KEY_ALIAS", "")).trim()
+            keyPassword = (System.getenv("RELEASE_KEY_PASSWORD")
+                ?: localProperties.getProperty("RELEASE_KEY_PASSWORD", "")).trim()
         }
     }
 

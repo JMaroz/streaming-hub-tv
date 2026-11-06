@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag della release per compilare e caricare l APK (es. v1.1.0)'
+        required: true
+        default: 'v1.1.0'
 
 permissions: {}
 
@@ -15,6 +21,7 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
     permissions:
       contents: write
       pull-requests: write
@@ -33,7 +40,7 @@ jobs:
   build-and-upload-apk:
     name: Build & Upload Release APK
     needs: release-please
-    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    if: ${{ always() && (needs.release-please.outputs.releases_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,7 +48,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ inputs.release_tag != '' && inputs.release_tag || needs.release-please.outputs.tag_name }}
           fetch-depth: 0
 
       - name: Set up JDK 21
@@ -65,12 +72,13 @@ jobs:
 
       - name: Calculate Version Info
         run: |
-          # Calcolo progressivo del versionCode basato sui commit totali (standard industry practice)
+          TARGET_TAG="${{ inputs.release_tag != '' && inputs.release_tag || needs.release-please.outputs.tag_name }}"
           VERSION_CODE=$(git rev-list --count HEAD)
-          VERSION_NAME="${{ needs.release-please.outputs.version }}"
+          VERSION_NAME="${TARGET_TAG#v}"
+          echo "TARGET_TAG=$TARGET_TAG" >> "$GITHUB_ENV"
           echo "APP_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "APP_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
-          echo "::notice::Compilazione release con versionName=$VERSION_NAME e versionCode=$VERSION_CODE"
+          echo "::notice::Compilazione release $TARGET_TAG con versionName=$VERSION_NAME e versionCode=$VERSION_CODE"
 
       - name: Build Release APK with Gradle
         env:
@@ -81,12 +89,14 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          export RELEASE_STORE_PASSWORD="$(echo -n "$RELEASE_STORE_PASSWORD" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          export RELEASE_KEY_ALIAS="$(echo -n "$RELEASE_KEY_ALIAS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          export RELEASE_KEY_PASSWORD="$(echo -n "$RELEASE_KEY_PASSWORD" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
 
       - name: Prepare Release Artifacts and Checksums
         run: |
-          RELEASE_TAG="${{ needs.release-please.outputs.tag_name }}"
           APK_OUTPUT="app/build/outputs/apk/release/app-release.apk"
 
           if [ ! -f "$APK_OUTPUT" ]; then
@@ -96,18 +106,18 @@ jobs:
 
           # Asset con nome standard e versionato
           cp "$APK_OUTPUT" streaming-hub-tv.apk
-          cp "$APK_OUTPUT" "streaming-hub-tv-${RELEASE_TAG}.apk"
+          cp "$APK_OUTPUT" "streaming-hub-tv-${TARGET_TAG}.apk"
 
           # Generazione checksums SHA-256
-          sha256sum streaming-hub-tv.apk "streaming-hub-tv-${RELEASE_TAG}.apk" > checksums.txt
+          sha256sum streaming-hub-tv.apk "streaming-hub-tv-${TARGET_TAG}.apk" > checksums.txt
           cat checksums.txt
 
       - name: Upload APK Assets to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+          gh release upload "$TARGET_TAG" \
             streaming-hub-tv.apk \
-            "streaming-hub-tv-${{ needs.release-please.outputs.tag_name }}.apk" \
+            "streaming-hub-tv-${TARGET_TAG}.apk" \
             checksums.txt \
             --clobber
