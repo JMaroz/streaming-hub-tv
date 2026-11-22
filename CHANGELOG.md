@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/JMaroz/streaming-hub-tv/compare/v1.1.0...v1.2.0) (2026-11-22)
+
+
+### Features
+
+* **ui:** implement accordion hero carousel, fluid glass topbar, and ambient backdrop ([10292d0](https://github.com/JMaroz/streaming-hub-tv/commit/10292d0712aaff775e43d6c9d50797f1c2ee2b00))
+
+
+### Bug Fixes
+
+* **ci:** sanitize signing credentials and support manual release dispatch for apk upload ([3589ddf](https://github.com/JMaroz/streaming-hub-tv/commit/3589ddf0b22afdf054a4e547b5bfbf7e0fd8d353))
+
 ## [1.1.0](https://github.com/JMaroz/streaming-hub-tv/compare/v1.0.0...v1.1.0) (2026-11-06)
 
 
