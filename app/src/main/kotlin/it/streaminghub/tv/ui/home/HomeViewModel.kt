@@ -8,7 +8,9 @@ import it.streaminghub.tv.data.model.MediaItemDto
 import it.streaminghub.tv.data.repository.CatalogRepository
 import it.streaminghub.tv.data.repository.FavoritesRepository
 import it.streaminghub.tv.data.repository.PlaybackRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +27,7 @@ enum class HomeSection(val id: String, val title: String) {
 
 data class SectionData(
     val heroItem: MediaItemDto? = null,
+    val carouselItems: List<MediaItemDto> = emptyList(),
     val isCarouselsMode: Boolean = false,
     val carousels: List<HomeCarouselDto> = emptyList(),
     val latestTitles: List<MediaItemDto> = emptyList(),
@@ -38,6 +41,8 @@ data class HomeUiState(
     val activeProfileName: String = "Principale",
     val selectedSection: HomeSection = HomeSection.ALL,
     val heroItem: MediaItemDto? = null,
+    val carouselItems: List<MediaItemDto> = emptyList(),
+    val ambientBackdropUrl: String? = null,
     val isHeroFavorite: Boolean = false,
     val isCarouselsMode: Boolean = false,
     val carousels: List<HomeCarouselDto> = emptyList(),
@@ -93,6 +98,8 @@ class HomeViewModel(
                     selectedSection = HomeSection.ALL,
                     isLoading = true,
                     heroItem = null,
+                    carouselItems = emptyList(),
+                    ambientBackdropUrl = null,
                     carousels = emptyList(),
                     continueWatching = emptyList(),
                     favorites = emptyList(),
@@ -202,8 +209,10 @@ class HomeViewModel(
                 val homeCatalogRes = catalogRepository.getHomeCatalog(source = "all", profileId = profileId).getOrNull()
                 if (homeCatalogRes != null && homeCatalogRes.mode == "carousels" && homeCatalogRes.carousels.isNotEmpty()) {
                     val hero = homeCatalogRes.hero ?: homeCatalogRes.carousels.firstOrNull()?.items?.firstOrNull()
+                    val carouselList = homeCatalogRes.carousels.firstOrNull()?.items?.take(10) ?: emptyList()
                     val data = SectionData(
                         heroItem = hero,
+                        carouselItems = carouselList,
                         isCarouselsMode = true,
                         carousels = homeCatalogRes.carousels
                     )
@@ -223,6 +232,7 @@ class HomeViewModel(
                     val actionList = actionDef.await().getOrNull()?.results ?: emptyList()
 
                     val hero = homeCatalogRes?.hero ?: latestList.firstOrNull() ?: movieList.firstOrNull()
+                    val carouselList = latestList.take(10).ifEmpty { movieList.take(10) }
                     val shelves = listOf(
                         "Ultimi Arrivi" to latestList,
                         "Film Recenti" to movieList,
@@ -233,6 +243,7 @@ class HomeViewModel(
 
                     val data = SectionData(
                         heroItem = hero,
+                        carouselItems = carouselList,
                         isCarouselsMode = false,
                         latestTitles = latestList,
                         categoryShelves = shelves
@@ -265,6 +276,7 @@ class HomeViewModel(
 
                 val data = SectionData(
                     heroItem = latestList.firstOrNull() ?: actionList.firstOrNull(),
+                    carouselItems = latestList.take(10).ifEmpty { actionList.take(10) },
                     isCarouselsMode = false,
                     latestTitles = latestList,
                     categoryShelves = shelves
@@ -296,6 +308,7 @@ class HomeViewModel(
 
                 val data = SectionData(
                     heroItem = latestList.firstOrNull() ?: dramaList.firstOrNull(),
+                    carouselItems = latestList.take(10).ifEmpty { dramaList.take(10) },
                     isCarouselsMode = false,
                     latestTitles = latestList,
                     categoryShelves = shelves
@@ -313,6 +326,7 @@ class HomeViewModel(
 
                 val hasCarousels = animeCatalogRes != null && animeCatalogRes.carousels.isNotEmpty()
                 val hero = animeCatalogRes?.hero ?: animeLatestList.firstOrNull() ?: animeCatalogRes?.carousels?.firstOrNull()?.items?.firstOrNull()
+                val animeCarouselList = (animeCatalogRes?.carousels?.firstOrNull()?.items ?: animeLatestList).take(10)
 
                 val shelves = if (!hasCarousels && animeLatestList.isNotEmpty()) {
                     listOf("Ultimi Episodi Anime" to animeLatestList)
@@ -320,6 +334,7 @@ class HomeViewModel(
 
                 val data = SectionData(
                     heroItem = hero,
+                    carouselItems = animeCarouselList,
                     isCarouselsMode = hasCarousels,
                     carousels = animeCatalogRes?.carousels ?: emptyList(),
                     latestTitles = animeLatestList,
@@ -361,18 +376,38 @@ class HomeViewModel(
         )
     }
 
+    private var backdropDebounceJob: Job? = null
+
     private fun applySectionData(section: HomeSection, data: SectionData) {
         val isFav = data.heroItem?.let { h -> allFavorites.any { it.id == h.id } } ?: false
+        val sUrl = _uiState.value.serverUrl
+        val initialBackdrop = data.carouselItems.firstOrNull()?.getFormattedBackdropUrl(sUrl)
+            ?: data.heroItem?.getFormattedBackdropUrl(sUrl)
+
         _uiState.value = _uiState.value.copy(
             isLoading = false,
             selectedSection = section,
             heroItem = data.heroItem,
+            carouselItems = data.carouselItems,
+            ambientBackdropUrl = initialBackdrop,
             isHeroFavorite = isFav,
             isCarouselsMode = data.isCarouselsMode,
             carousels = data.carousels,
             latestTitles = data.latestTitles,
             categoryShelves = data.categoryShelves
         )
+    }
+
+    fun onCarouselItemFocused(item: MediaItemDto) {
+        backdropDebounceJob?.cancel()
+        backdropDebounceJob = viewModelScope.launch {
+            delay(350)
+            val sUrl = _uiState.value.serverUrl
+            val formatted = item.getFormattedBackdropUrl(sUrl)
+            if (!formatted.isNullOrBlank() && formatted != _uiState.value.ambientBackdropUrl) {
+                _uiState.value = _uiState.value.copy(ambientBackdropUrl = formatted)
+            }
+        }
     }
 
     fun onCardFocused(item: MediaItemDto) {
